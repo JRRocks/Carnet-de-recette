@@ -1,72 +1,102 @@
 # Cadrage du Carnet de recettes
 
-> État : **cadrage validé le 2026-10-23**, aucune ligne de code encore écrite.
+> État : **cadrage validé le 2026-10-23**, révisé le même jour après le test d'accès Cowork
+> (§ 2, lignes marquées « à valider »). Aucune ligne de code encore écrite.
 > Ce document fait foi pour les décisions. Une décision qui change se corrige ici, avec sa date.
 
 ## 1. En une phrase
 
-Le vendredi, je scanne l'étiquette de chaque box HelloFresh. Le vendredi soir, Claude Cowork
-retrouve les recettes, les découpe en tâches pour deux cuisiniers et prépare la lecture
-audio. Le samedi, l'app récupère le résultat sur Drive. En cuisine, chacun suit ses tâches
-sur son téléphone, à l'écran et à l'oreille.
+Le vendredi, je scanne l'étiquette de chaque box HelloFresh et l'app récupère les recettes
+sur le site. Le vendredi soir, Claude Cowork les découpe en tâches pour deux cuisiniers et
+prépare la lecture audio. Le samedi, l'app récupère ce travail sur Drive. En cuisine, chacun
+suit ses tâches sur son téléphone, à l'écran et à l'oreille.
 
-## 2. Décisions validées (2026-10-23)
+## 2. Décisions
 
-| Sujet | Décision |
+| Sujet | Décision | Date |
+|---|---|---|
+| Plateforme | **App Android native (APK)**, distribuée hors Play Store. Pas d'AppSheet (trop restreint) | 2026-10-23 |
+| Téléphones | **Un compte Google partagé**, **chacun son téléphone** | 2026-10-23 |
+| Stockage | Google Drive, dossier `Maison/Carnet de recettes/` | 2026-10-23 |
+| Source des recettes | **Pages publiques** de hellofresh.fr, lues comme le ferait un navigateur : le menu de la semaine et la page de chaque recette (§ 5). **Jamais de jeton extrait d'une page, jamais d'interface interne du site.** PDF et photo de fiche = **mode dégradé** seulement | 2026-10-23, révisé |
+| Qui récupère | **L'app, au moment du scan** (vendredi). Cowork n'accède plus au site | 2026-10-23, **à valider** |
+| Saisie | Scan de l'**étiquette de la box** (n° de recette, nombre de personnes), **sans regex** | 2026-10-23 |
+| Intelligence | **Claude Cowork le vendredi soir**, à partir des données déposées sur Drive. Pas de LLM dans l'app | 2026-10-23 |
+| Audio | Lecture **par segments** courts que l'on valide, active ou planifie, jamais toute la recette d'un trait | 2026-10-23 |
+| Dépôts | `Library` : moteurs réutilisables · `Carnet-de-recette` : l'app et le skill Cowork | 2026-10-23 |
+| Légal | Code public sur GitHub, contenu HelloFresh en usage privé seulement, app jamais vendue | 2026-10-23 |
+| Mode dégradé | Place réservée dans le code, **moteurs non codés** tant que l'accès HelloFresh tient | 2026-10-23 |
+| Alerte | Une sonde prévient si l'accès HelloFresh casse, pour passer en mode dégradé | 2026-10-23 |
+
+### Pourquoi la récupération est passée de Cowork à l'app (test du 2026-10-23)
+
+| Test dans Cowork | Résultat |
 |---|---|
-| Plateforme | **App Android native (APK)**, distribuée hors Play Store. Pas d'AppSheet (trop restreint) |
-| Téléphones | **Un compte Google partagé**, **chacun son téléphone** |
-| Stockage | Google Drive, dossier `Maison/Carnet de recettes/` |
-| Source des recettes | Le site hellofresh.fr (données structurées, toutes portions, images). PDF et photo de fiche = **mode dégradé** seulement |
-| Saisie | Scan de l'**étiquette de la box** (n° de recette, nombre de personnes), **sans regex** |
-| Intelligence | **Claude Cowork le vendredi soir**, pas de LLM dans l'app |
-| Audio | Lecture **par segments** courts que l'on valide, active ou planifie, jamais toute la recette d'un trait |
-| Dépôts | `Library` : moteurs réutilisables · `Carnet-de-recette` : l'app et le skill Cowork |
-| Légal | Code public sur GitHub, contenu HelloFresh en usage privé seulement, app jamais vendue |
-| Mode dégradé | Place réservée dans le code, **moteurs non codés** tant que l'accès HelloFresh tient |
-| Alerte | Une sonde prévient si l'accès HelloFresh casse, pour passer en mode dégradé |
+| Lire une page recette publique avec l'outil web | ✅ Ingrédients obtenus (portion affichée seulement). Étapes **résumées** : Cowork ne recopie pas un texte d'origine mot pour mot |
+| Script : jeton extrait de la page, puis appel de l'interface interne `/gw/…` | ❌ **Bloqué** par le garde-fou de Cowork (« contournement d'accès à un site ») |
+
+On en tire trois conséquences :
+
+1. **Abandon du jeton et de l'interface interne, partout.** Ce schéma est vu comme un
+   contournement d'accès. Ça ne colle pas avec une démarche légale, même s'il fonctionnait
+   depuis un conteneur cloud.
+2. **Les pages publiques suffisent** (vérifié) :
+   - `https://www.hellofresh.fr/menus/AAAA-Www` donne le menu d'une semaine, numéros
+     compris, pour les semaines passées aussi ;
+   - la page de chaque recette contient ses données complètes : portions de 1 à 6,
+     images du plat, des étapes et des ingrédients.
+3. **L'app récupère et Cowork réfléchit.**
+   - L'app lit ces pages comme un navigateur et garde le contenu d'origine sur le téléphone
+     et le Drive de l'utilisateur.
+   - Cowork travaille à partir de ce contenu et écrit **avec ses mots** les tâches et les
+     segments audio. On ne lui demande jamais de recopier un texte d'origine.
 
 ## 3. La semaine type
 
 ```
-VENDREDI, réception         VENDREDI SOIR, Cowork             SAMEDI               EN CUISINE
-─────────────────────       ─────────────────────────         ──────────────       ─────────────────────
-App : scan des              Tâche planifiée (skill) :         App : « Importer     Chaque téléphone :
-étiquettes (207 · 4p…)      1. sonde HelloFresh               la semaine »         son rôle, ses tâches,
-        │                   2. lit les scans + profil         (sélecteur Drive)    ses segments audio,
-        ▼                   3. retrouve les recettes                 │             ses minuteurs
-Drive : scans-AAAA-Sww.json 4. découpe en tâches, hachoir,           ▼                     ▲
-        (écrit par l'app)      segments audio                 Base locale + images         │
-                            5. écrit semaine-AAAA-Sww.json    en cache ────────────────────┘
-                               (nouveau fichier sur Drive)
+VENDREDI, réception              VENDREDI SOIR, Cowork            SAMEDI               EN CUISINE
+──────────────────────────       ────────────────────────         ──────────────       ────────────────────
+App :                            Tâche planifiée (skill) :        App : « Importer     Chaque téléphone :
+1. sonde du site                 1. lit recettes, scans et        la semaine »         son rôle, ses tâches,
+2. menu de la semaine               profil sur Drive              (sélecteur Drive)    ses segments audio,
+3. scan des étiquettes           2. confirme personnes et               │              ses minuteurs
+   → « 207 = <titre> »              recettes                            ▼                     ▲
+4. pages des recettes            3. tâches, hachoir,              Fusion avec les             │
+        │                           segments audio                recettes déjà en ───────────┘
+        ▼                        4. écrit semaine-AAAA-Sww.json   base locale
+Drive : recettes-AAAA-Sww.json      (nouveau fichier sur Drive)
+        scans-AAAA-Sww.json
 ```
 
-## 4. Les échanges avec Google Drive (point dur, tranché)
+## 4. Les échanges avec Google Drive
 
 ### Ce qui coince
 
 - Le moteur Drive de la Library (`google-drive-appdata`, éprouvé sur Popote) écrit dans le
   **dossier caché** `appDataFolder`. **Claude Cowork ne peut pas le voir.** Il faut un
   dossier visible.
-- Portée retenue : **`drive.file`**. Elle est non sensible, donc l'app peut être publiée sans
-  validation Google : pas de reconnexion forcée tous les 7 jours, des amis peuvent l'utiliser.
-  Mais avec `drive.file`, **l'app ne voit que les fichiers qu'elle a créés elle-même.**
-- Le connecteur Drive de Claude peut **créer** un fichier, le renommer ou le déplacer, mais
-  **pas réécrire le contenu d'un fichier existant**. Cowork ne peut donc pas remplir un
-  fichier préparé par l'app : ce qu'il produit est un fichier neuf, invisible pour l'API de
-  l'app.
+- **Portée retenue : `drive.file`.**
+  - Elle est non sensible : l'app peut être publiée sans validation Google. Il n'y a pas de
+    reconnexion forcée tous les 7 jours, et des amis peuvent l'utiliser.
+  - Mais avec `drive.file`, **l'app ne voit que les fichiers qu'elle a créés elle-même.**
+- **Le connecteur Drive de Claude ne réécrit pas un fichier existant.** Il peut **créer** un
+  fichier, le renommer ou le déplacer, mais pas en changer le contenu.
+  - Cowork ne peut donc pas remplir un fichier préparé par l'app.
+  - Ce qu'il produit est un fichier neuf, invisible pour l'API de l'app.
 
 ### Ce qu'on fait
 
 | Sens | Moyen | Pourquoi |
 |---|---|---|
-| App → Drive (scans, profil cuisine, session de cuisine) | **API Drive, portée `drive.file`**, moteur `google-drive-appdata` adapté (dossier visible au lieu d'`appDataFolder`) | Automatique, sans geste. Cowork lit tout le Drive, donc il voit ces fichiers |
-| Cowork → App (résultat de la semaine) | **Sélecteur de fichiers Android** (fournisseur Google Drive), bouton « Importer la semaine » | Colle au « samedi je télécharge ». Aucune portée restreinte, aucun projet Cloud nécessaire pour ce sens |
+| App → Drive (recettes, scans, profil cuisine, session de cuisine) | **API Drive, portée `drive.file`**, moteur `google-drive-appdata` adapté (dossier visible au lieu d'`appDataFolder`) | Automatique, sans geste. Cowork lit tout le Drive, donc il voit ces fichiers. Le second téléphone aussi (même compte, même app) |
+| Cowork → App (travail de la semaine) | **Sélecteur de fichiers Android** (fournisseur Google Drive), bouton « Importer la semaine » | Colle au « samedi je télécharge ». Aucune portée restreinte, aucun projet Cloud nécessaire pour ce sens |
 
 **Option pour plus tard**, si le geste du samedi pèse : ajouter `drive.readonly` pour un
-import automatique. C'est une portée **restreinte** : l'app reste en mode test, il faut
-redonner l'accord à peu près chaque semaine, l'écran « application non validée » s'affiche,
-et chaque ami doit être déclaré testeur (100 au maximum).
+import automatique. C'est une portée **restreinte**, avec plusieurs contraintes :
+- l'app reste en mode test ;
+- il faut redonner l'accord à peu près chaque semaine ;
+- l'écran « application non validée » s'affiche ;
+- chaque ami doit être déclaré testeur (100 au maximum).
 
 ### Le dossier
 
@@ -76,57 +106,86 @@ même compte le retrouve par une recherche.
 
 ```
 Maison/Carnet de recettes/
-├── profil-cuisine.json        (app)    matériel, cuisiniers, rôles, préférences
+├── profil-cuisine.json         (app)    matériel, cuisiniers, rôles, préférences
+├── recettes/
+│   └── recettes-2026-S43.json  (app)    recettes de la semaine, telles que lues sur le site
 ├── scans/
-│   ├── scans-2026-S43.json    (app)    texte brut des étiquettes
-│   └── etiquette-…jpg         (app)    photo de l'étiquette, en secours
+│   ├── scans-2026-S43.json     (app)    texte brut des étiquettes, recette reconnue
+│   └── etiquette-…jpg          (app)    photo de l'étiquette, en secours
 ├── semaines/
-│   └── semaine-2026-S43.json  (Cowork) recettes enrichies de la semaine
-└── sessions/                  (app)    synchro des deux téléphones pendant la cuisson
+│   └── semaine-2026-S43.json   (Cowork) tâches, hachoir, segments audio
+└── sessions/                   (app)    synchro des deux téléphones pendant la cuisson
 ```
 
-Les images des recettes ne passent pas par Drive. Le fichier de la semaine porte leurs
-adresses, et l'app les télécharge puis les garde en cache sur le téléphone.
+Les images ne passent pas par Drive. Les données portent leurs adresses ; l'app les
+télécharge et les garde en cache sur le téléphone.
 
-## 5. Scan de l'étiquette de la box, sans regex
+## 5. Le vendredi dans l'app : scan et récupération
+
+### Le site, pages publiques seulement
+
+| Page | Ce qu'on y lit |
+|---|---|
+| `https://www.hellofresh.fr/menus/AAAA-Www` | Le menu de la semaine : numéro → titre, sous-titre, adresse de la recette |
+| Adresse de la recette | La recette complète, portions de 1 à 6, images |
+
+Les données sont dans la page telle que le site l'envoie à tout visiteur (bloc de données
+de la page, et bloc `schema.org/Recipe` prévu pour les machines). Il n'y a ni connexion ni
+jeton, et une poignée de pages par semaine. Ce lecteur est **la** pièce fragile : si le site
+change, c'est lui qui casse, et la sonde (§ 9) le dit tout de suite.
+
+### Le scan de l'étiquette, sans regex
 
 L'étiquette porte aujourd'hui un grand numéro (`207`) et un nombre de personnes (`4p`).
 On ne fige pas ce format.
 
-- **Moteur** : `scan-multimode` de la Library (extrait de ScanList, OCR ✅ éprouvé), mode OCR :
-  `OcrAnalyzer` → `ScanConsensus` (5 lectures identiques) → `ScanDebouncer` → `ScanFeedback`.
-  On n'utilise **pas** `RegexRuleEngine`.
-- **Adaptation nécessaire** : `OcrAnalyzer` ne remonte aujourd'hui que le texte brut. Il faut
-  remonter aussi les **éléments** reconnus avec leur **hauteur et leur position** (taille de
-  police relative), et ne garder que ceux qui sont dans le réticule. À consigner dans la fiche
-  de la Library (AGENTS.md, règle 6).
+- **Moteur** : `scan-multimode` de la Library (extrait de ScanList, OCR ✅ éprouvé), mode OCR.
+  - La chaîne : `OcrAnalyzer` → `ScanConsensus` (5 lectures identiques) → `ScanDebouncer`
+    → `ScanFeedback`.
+  - On n'utilise **pas** `RegexRuleEngine`.
+- **Adaptation nécessaire** : `OcrAnalyzer` ne remonte aujourd'hui que le texte brut.
+  - Il doit remonter aussi les **éléments** reconnus, avec leur **hauteur et leur position**
+    (taille de police relative).
+  - Il ne garde que les éléments situés dans le réticule.
+  - À consigner dans la fiche de la Library (AGENTS.md, règle 6).
 - **Consensus** : il porte sur la « signature » de l'étiquette, c'est-à-dire l'ensemble des
   éléments normalisés (`ScanValue`) vus dans le réticule.
-- **Ce qui part sur Drive** : les éléments bruts (texte, hauteur, position), l'heure du scan
-  et une petite photo de l'étiquette en secours.
-- **Interprétation** : **Claude**, le vendredi soir. Il trouve le n° de recette et le nombre
-  de personnes, puis il **vérifie contre le menu de la semaine** : le numéro doit exister, et
-  le nombre de personnes doit faire partie des portions proposées. Un doute marque la
-  recette « à confirmer » au lieu de deviner. Si l'étiquette change de format, rien n'est à
-  recoder.
-- **À l'écran** : la liste des étiquettes capturées, telle que lue, avec suppression et
-  nouveau scan possibles.
+- **Reconnaissance de la recette, sans format.**
+  - Le menu de la semaine est chargé avant le scan.
+  - Un élément lu qui est **exactement l'un des numéros de ce menu** désigne la recette.
+  - On compare à une liste de valeurs connues, pas à un motif : si l'étiquette change de
+    mise en page, ça marche encore.
+  - Si rien ne correspond, l'app affiche le menu de la semaine et on touche la recette.
+- **Nombre de personnes** : l'app le **propose** et on le corrige d'un geste. Les éléments
+  bruts partent avec le scan, et Claude le confirme le vendredi soir. Un doute marque la
+  recette « à confirmer » au lieu de deviner.
+- **Retour immédiat** : « 207 · <titre de la recette> · 4 pers. ✔ », puis la page de la recette est
+  lue et ajoutée à `recettes-AAAA-Sww.json`.
+- **Ce qui part sur Drive** :
+  - les éléments bruts (texte, hauteur, position) et l'heure du scan ;
+  - la recette reconnue ;
+  - une petite photo de l'étiquette, en secours.
 
 ## 6. Le travail de Cowork le vendredi soir
 
 Un **skill Cowork** (versionné dans ce dépôt ; les données sont sur Drive, le skill les lit
 et les écrit), lancé par une **tâche planifiée** le vendredi soir, ou à la main.
+**Il n'accède pas au site HelloFresh** : tout ce qu'il lui faut est sur Drive.
 
-1. **Sonde** HelloFresh (§ 9). En cas d'échec : fichier de semaine au statut `degrade`,
-   notification, arrêt.
-2. Lit `scans-…json` et `profil-cuisine.json`.
-3. Interprète les étiquettes (§ 5) et retrouve les recettes dans le menu de la semaine. Le
-   numéro seul ne suffit pas : d'une semaine à l'autre, le même numéro désigne une autre
-   recette.
-4. Récupère chaque recette **pour le nombre de personnes lu**. Les quantités de HelloFresh
-   par portion sont les vraies quantités de la box, pas une multiplication.
-5. **Enrichit** : tâches atomiques (§ 7), conseils hachoir, segments audio (§ 8).
-6. Écrit `semaine-AAAA-Sww.json` dans `semaines/`.
+1. Lit `recettes-…json`, `scans-…json` et `profil-cuisine.json`. Si l'app a signalé le mode
+   dégradé (§ 9), il le reprend dans son fichier et s'arrête.
+2. Confirme, pour chaque box, la recette et le nombre de personnes à partir des éléments
+   bruts. En cas de doute, il marque la recette « à confirmer ».
+3. **Enrichit**, avec ses propres mots :
+   - les tâches atomiques (§ 7) ;
+   - les conseils hachoir ;
+   - les segments audio (§ 8).
+
+   Les quantités viennent des données de la recette **pour le nombre de personnes lu** :
+   HelloFresh donne les vraies quantités de la box par portion, ce n'est pas une
+   multiplication.
+4. Écrit `semaine-AAAA-Sww.json` dans `semaines/`. Ce fichier ne contient **que** son
+   travail et des références aux recettes, jamais une copie du contenu d'origine.
 
 Format du fichier de la semaine (esquisse, à figer au lot 3) :
 
@@ -137,13 +196,11 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
   "recettes": [{
     "numero": 207, "personnes": 4, "a_confirmer": false,
     "source": { "type": "hellofresh", "id": "…", "url": "…" },
-    "titre": "…", "sous_titre": "…", "duree_min": 30,
-    "ingredients": [{ "nom": "…", "quantite": 2, "unite": "pièce(s)", "image": "https://…" }],
-    "etapes": [{ "numero": 1, "texte": "…", "image": "https://…" }],
     "taches": [{
       "id": "t3", "type": "decoupe | chauffe | attente | dressage",
       "duree_min": 5, "apres": ["t1"], "ingredients": ["…"], "ustensile": "…",
-      "texte": "…", "hachoir": { "avec": ["t4"], "mode": "ensemble | a_la_suite", "ordre": "…" }
+      "texte": "…", "etape_origine": 2,
+      "hachoir": { "avec": ["t4"], "mode": "ensemble | a_la_suite", "ordre": "…" }
     }],
     "segments_audio": [{
       "id": "a3", "tache": "t3", "texte": "…",
@@ -157,14 +214,20 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
 
 **Principe** : Claude réfléchit à l'import ; l'app ordonnance en cuisine.
 
-- **À l'import** : chaque étape est découpée en **tâches atomiques** avec un type (découpe,
-  chauffe, attente passive, dressage), une durée, des dépendances (« poireaux émincés » avant
-  « poireaux à la poêle »), les ingrédients et l'ustensile. HelloFresh ne fournit pas ce
-  découpage : ses étapes sont du texte libre, sans minuteur ni lien vers les ingrédients.
-- **En cuisine** : un ordonnancement **déterministe** répartit les tâches selon les cuisiniers
-  présents. Seul, tout s'enchaîne. À deux, l'un découpe et l'autre chauffe ; les rôles sont des
-  préférences, pas des murs (celui qui est libre prend la tâche prête). Les deux téléphones
-  calculent **le même plan** à partir des mêmes données.
+- **À l'import** : chaque étape est découpée en **tâches atomiques**. Une tâche porte :
+  - un type : découpe, chauffe, attente passive, dressage ;
+  - une durée ;
+  - des dépendances (« poireaux émincés » avant « poireaux à la poêle ») ;
+  - les ingrédients et l'ustensile.
+
+  HelloFresh ne fournit pas ce découpage : ses étapes sont du texte libre, sans minuteur ni
+  lien vers les ingrédients.
+- **En cuisine** : un ordonnancement **déterministe** répartit les tâches selon les
+  cuisiniers présents.
+  - Seul, tout s'enchaîne.
+  - À deux, l'un découpe et l'autre chauffe. Les rôles sont des préférences, pas des murs :
+    celui qui est libre prend la tâche prête.
+  - Les deux téléphones calculent **le même plan** à partir des mêmes données.
 - **Hachoir** (selon `profil-cuisine.json`) :
   - même moment d'utilisation et même destination → **ensemble** dans le hachoir ;
   - moments différents → **à la suite sans rincer**, en commençant par le plus sec et le plus
@@ -172,10 +235,12 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
   - un ingrédient qui finit dans une sauce mixée → **la sauce se fait dans le hachoir** (un
     bol de moins) ;
   - quantité trop faible pour la cuve → couteau.
-- **Synchro des deux téléphones** : chaque « tâche terminée » est écrite dans un fichier de
-  session sur Drive (créé par l'app, donc lisible par les deux téléphones), relu toutes les
-  quelques secondes. Si la latence gêne, on passera à une liaison directe entre téléphones
-  (Nearby Connections, sans Internet). À trancher au lot 6.
+- **Synchro des deux téléphones** :
+  - Chaque « tâche terminée » est écrite dans un fichier de session sur Drive. L'app l'a
+    créé, donc les deux téléphones peuvent le lire.
+  - Chaque téléphone relit ce fichier toutes les quelques secondes.
+  - Si la latence gêne, on passera à une liaison directe entre téléphones (Nearby
+    Connections, sans Internet). À trancher au lot 6.
 
 ## 8. La lecture audio par segments
 
@@ -194,13 +259,14 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
 
 ## 9. Mode dégradé et alerte
 
-**Sonde** : la page répond, le jeton anonyme est présent, le menu de la semaine répond, et
-une recette contient bien les champs attendus (nom, ingrédients, étapes, portions).
+**Sonde**, dans l'app, au début du vendredi (avant le premier scan). Elle vérifie que :
+- la page du menu de la semaine répond et contient des numéros ;
+- une page recette contient bien les champs attendus (nom, ingrédients, étapes, portions).
 
 | Où | Quand | Effet si ça casse |
 |---|---|---|
-| Début du travail Cowork | Chaque vendredi soir | Fichier de semaine au statut `degrade` + notification. Au samedi, l'app affiche un bandeau « Accès HelloFresh rompu : passe en mode dégradé (PDF ou photo de la fiche) » |
-| GitHub Actions (optionnel) | Chaque jeudi | Ouvre une issue sur ce dépôt, donc un e-mail, **avant** le vendredi |
+| App | Ouverture de l'écran de scan | Bandeau immédiat « Accès HelloFresh rompu : passe en mode dégradé (PDF ou photo de la fiche) », et statut `degrade` dans `recettes-…json` pour que Cowork le reprenne |
+| GitHub Actions (optionnel) | Chaque jeudi | Même sonde sur les pages publiques ; ouvre une issue sur ce dépôt, donc un e-mail, **avant** le vendredi |
 
 **Mode dégradé, version 1 : sans code dans l'app.** On donne le PDF ou la photo de la fiche
 à Cowork, et Claude la lit directement. Il produit le même fichier de semaine.
@@ -209,7 +275,7 @@ une recette contient bien les champs attendus (nom, ingrédients, étapes, porti
 
 ```
 SourceRecette
-├── HelloFreshSource   actif
+├── HelloFreshSource   actif (pages publiques)
 ├── PdfSource          réservé (PDF imprimé du site)
 ├── PhotoFicheSource   réservé (OCR ou vision sur la fiche papier)
 └── JsonLdSource       réservé (autres sites de recettes : format schema.org Recipe)
@@ -217,22 +283,27 @@ SourceRecette
 
 ## 10. Légal
 
-- CGU HelloFresh, article 12 : reproduction et rediffusion interdites « en dehors de toute
-  utilisation privée ». On reste donc dans l'usage privé : chaque utilisateur récupère ses
-  propres recettes, et le contenu reste sur son Drive et son téléphone.
+- **CGU HelloFresh, article 12** : reproduction et rediffusion interdites « en dehors de
+  toute utilisation privée ». On reste donc dans l'usage privé : chaque utilisateur récupère
+  ses propres recettes, et le contenu reste sur son Drive et son téléphone.
+- **Pages publiques seulement**, lues comme un navigateur.
+  - Pas de jeton récupéré dans une page, pas d'interface interne du site.
+  - Le test Cowork a montré que ce schéma est traité comme un contournement d'accès.
 - **Le dépôt public ne contient que du code.** Aucun texte, aucune photo, aucun JSON de
   recette réelle, y compris dans les tests.
-- Requêtes vers HelloFresh : quelques-unes par semaine et par utilisateur, jamais de
-  moissonnage du catalogue.
-- Partage à des amis : chacun son compte Google et son Drive, aucun contenu ne transite par
-  nous.
+- **Peu de requêtes vers HelloFresh** : quelques pages par semaine et par utilisateur,
+  jamais de moissonnage du catalogue.
+- **Cowork ne recopie pas les textes d'origine.** Ce qu'il écrit sur Drive est son propre
+  travail.
+- **Partage à des amis** : chacun son compte Google et son Drive, aucun contenu ne transite
+  par nous.
 
 ## 11. Moteurs de la Library réutilisés
 
 | Moteur | Statut Library | Usage ici | Adaptation |
 |---|---|---|---|
 | `scan-multimode` (mode OCR) | ✅ OCR | Scan des étiquettes | Remonter les éléments avec taille et position ; pas de `RegexRuleEngine` |
-| `google-drive-appdata` | ✅ | Connexion Google, envoi des scans, profil, sessions | Portée `drive.file` et dossier visible au lieu d'`appDataFolder` |
+| `google-drive-appdata` | ✅ | Connexion Google, dépôt des recettes et des scans, profil, sessions | Portée `drive.file` et dossier visible au lieu d'`appDataFolder` |
 | `maj-auto-github` | ✅ | Mise à jour de l'APK | Dépôt de code déjà public : les Releases peuvent être publiées directement ici |
 | Capteur de plantage (Popote, 🔬 candidat) | — | Rapport de plantage sans câble | À extraire d'abord dans la Library |
 
@@ -241,14 +312,16 @@ SourceRecette
 
 ## 12. Points à vérifier
 
-- [ ] **Cowork joint-il hellofresh.fr ?** Mes tests ont été faits depuis un conteneur cloud.
-      Si Cowork n'y arrive pas, le tester sur le mode dégradé (photo ou PDF).
+- [x] **Cowork joint-il hellofresh.fr ?** Pages publiques : oui. Jeton et interface interne :
+      bloqués, et abandonnés (§ 2).
 - [ ] **Semaine du menu** : vérifier que le numéro de l'étiquette se lit dans le menu de la
       semaine de livraison (premier vendredi réel).
 - [ ] La console Google accepte-t-elle deux SHA-1 (debug et release) sur un même client
       Android, ou faut-il deux clients ? (La fiche Library dit « un client, deux
       empreintes ».)
 - [ ] Le sélecteur de fichiers Android voit-il bien Google Drive sur les deux téléphones ?
+- [ ] Cowork accepte-t-il de produire les tâches à partir de `recettes-…json` déposé par
+      l'app ? (Test du lot 3.)
 - [ ] La compilation Android dans les sessions cloud demande que l'environnement installe le
       SDK Android (comme pour Popote).
 
@@ -258,8 +331,8 @@ SourceRecette
 |---|---|---|
 | 0 | Ce cadrage | ✅ 2026-10-23 |
 | 1 | Squelette Android (Kotlin, Compose, minSdk 26), clé debug versionnée, CI de publication (`maj-auto-github`), connexion Drive `drive.file` et création du dossier | Configuration Google Cloud faite ensemble ([guide](google-cloud.md)) |
-| 2 | Scan des étiquettes (`scan-multimode` adapté) et envoi des scans sur Drive | Un vrai vendredi |
-| 3 | Skill Cowork du vendredi soir : sonde, interprétation, récupération, enrichissement, fichier de semaine | Test d'accès Cowork, puis un vrai vendredi soir |
+| 2 | Vendredi dans l'app : sonde, menu de la semaine, scan des étiquettes (`scan-multimode` adapté), lecture des pages recettes, dépôt sur Drive | Un vrai vendredi |
+| 3 | Skill Cowork du vendredi soir (sans accès web) : confirmation, tâches, hachoir, segments audio, fichier de semaine | Un vrai vendredi soir |
 | 4 | Import du samedi (sélecteur), catalogue local, images en cache, bandeau mode dégradé | — |
 | 5 | Mode cuisine : planificateur seul ou à deux, hachoir, segments audio, minuteurs | Un vrai repas à deux |
 | 6 | Synchro des deux téléphones | — |

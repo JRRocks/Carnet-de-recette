@@ -15,6 +15,9 @@ validées, architecture, déroulé de la semaine, ce qui est volontairement repo
 2. **Contenu HelloFresh : usage privé uniquement** (CGU HelloFresh, article 12). Il reste
    sur le Drive et le téléphone de chaque utilisateur. L'app ne sera jamais vendue ; elle
    peut être partagée à des amis, chacun avec son propre compte Google.
+   **Pages publiques seulement**, lues comme un navigateur : jamais de jeton extrait d'une
+   page, jamais d'interface interne du site (`/gw/…`). Ce schéma est traité comme un
+   contournement d'accès (cadrage § 2).
 3. **La Library d'abord.** Avant d'écrire une brique, cherchez dans
    [JRRocks/Library](https://github.com/JRRocks/Library) (`INDEX.md`) et suivez sa procédure
    AGENTS.md § 5.A : copie, renommage des packages, tests repris, ligne « Utilisé dans ».
@@ -23,8 +26,12 @@ validées, architecture, déroulé de la semaine, ce qui est volontairement repo
    recette, lecture de PDF, extraction par regex, autres sites de recettes) ne se codent pas
    tant que l'accès HelloFresh fonctionne. Seuls l'interface `SourceRecette` et le champ
    `source` du modèle les prévoient (cadrage § 9).
-5. **Pas de regex pour lire l'étiquette des box** : le format peut changer. L'app capture
-   le texte brut et Claude l'interprète (cadrage § 5).
-6. **Pas d'IA pendant la cuisson.** Tout ce qui demande de la réflexion se fait à l'import,
-   le vendredi soir dans Cowork. En cuisine, l'app est déterministe et marche hors ligne.
+5. **Pas de regex pour lire l'étiquette des box** : le format peut changer. L'app reconnaît
+   la recette en comparant le texte lu aux numéros du menu de la semaine, garde le texte
+   brut, et Claude confirme (cadrage § 5).
+6. **L'app récupère, Cowork réfléchit, personne ne recopie.** L'app lit les pages publiques
+   le vendredi. Cowork travaille à partir de ce qu'elle a déposé sur Drive, sans accès au
+   site, et écrit avec ses mots ; on ne lui demande jamais de recopier un texte d'origine.
+   **Pas d'IA pendant la cuisson** : en cuisine, l'app est déterministe et marche hors
+   ligne.
 7. **Français** pour la documentation, l'interface et les messages de commit.
