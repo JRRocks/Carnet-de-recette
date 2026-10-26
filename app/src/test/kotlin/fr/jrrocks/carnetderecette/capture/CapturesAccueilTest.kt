@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import fr.jrrocks.carnetderecette.drive.DriveCarnet
 import fr.jrrocks.carnetderecette.ui.EcranAccueil
 import fr.jrrocks.carnetderecette.ui.EtatDrive
 import fr.jrrocks.carnetderecette.ui.ThemeCarnet
@@ -80,7 +81,9 @@ class CapturesAccueilTest {
         compose.onNodeWithText("Hors ligne", substring = true).assertExists()
         capturer("03-accueil-hors-ligne")
 
-        etat = EtatDrive.Erreur("Le Drive a refusé : l'API Google Drive n'est pas activée dans le projet Google Cloud (docs/google-cloud.md, étape 2).")
+        // Le message réel du code, pas une copie : la capture montre ce que l'app affichera.
+        val apiNonActivee = """{"error":{"code":403,"errors":[{"reason":"accessNotConfigured"}]}}"""
+        etat = EtatDrive.Erreur(DriveCarnet.exceptionPour(403, "GET", apiNonActivee).message!!)
         compose.onNodeWithText("Réessayer").assertExists()
         capturer("04-accueil-erreur")
     }
