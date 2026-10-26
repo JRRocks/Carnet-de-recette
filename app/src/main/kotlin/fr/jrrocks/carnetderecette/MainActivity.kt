@@ -30,19 +30,31 @@ import fr.jrrocks.carnetderecette.ui.theme.ThemeCarnet
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * La date du jour, relue à chaque retour au premier plan : l'app laissée ouverte jeudi et
+     * reprise samedi ne doit pas garder la semaine de jeudi.
+     */
+    private var aujourdHui by mutableStateOf(LocalDate.now())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // La barre bleu nuit passe sous la barre d'état : icônes claires, en clair comme en sombre.
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
         setContent {
-            ThemeCarnet { Application(viewModel()) }
+            ThemeCarnet { Application(viewModel(), aujourdHui) }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        aujourdHui = LocalDate.now()
     }
 }
 
 /** Relie la coque à son ViewModel ; seuls les lanceurs d'activité vivent ici. */
 @Composable
-private fun Application(vm: AccueilViewModel) {
+private fun Application(vm: AccueilViewModel, aujourdHui: LocalDate) {
     val contexte = LocalContext.current
 
     val lanceurConsentement = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
@@ -57,13 +69,15 @@ private fun Application(vm: AccueilViewModel) {
     }
 
     val snackbars = remember { SnackbarHostState() }
-    // Une seule fois, au premier branchement réussi. Interrompue par une rotation, l'annonce revient.
+    // Une seule fois, au premier branchement de ce téléphone. Elle reste jusqu'à « Compris » :
+    // en temps limité, elle pouvait s'effacer sans avoir été lue. Interrompue par une rotation,
+    // elle revient.
     LaunchedEffect(vm.annonceDossier) {
         if (vm.annonceDossier) {
             snackbars.showSnackbar(
-                "Dossier « ${DriveCarnet.NOM_DOSSIER} » prêt. Déplace-le dans « Maison » sur le Drive.",
+                "Dossier «\u00A0${DriveCarnet.NOM_DOSSIER}\u00A0» prêt sur le Drive. S'il n'est pas encore dans «\u00A0Maison\u00A0», déplace-le.",
                 actionLabel = "Compris",
-                duration = SnackbarDuration.Long,
+                duration = SnackbarDuration.Indefinite,
             )
             vm.annonceVue()
         }
@@ -71,7 +85,7 @@ private fun Application(vm: AccueilViewModel) {
 
     var onglet by rememberSaveable { mutableStateOf(Onglet.SEMAINE) }
     CarnetApp(
-        etat = EtatCarnet(vm.etat, vm.maj, BuildConfig.VERSION_NAME, LocalDate.now()),
+        etat = EtatCarnet(vm.etat, vm.maj, BuildConfig.VERSION_NAME, aujourdHui),
         onglet = onglet,
         onOnglet = { onglet = it },
         actions = ActionsCarnet(

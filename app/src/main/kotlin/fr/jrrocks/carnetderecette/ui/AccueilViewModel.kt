@@ -44,8 +44,9 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
         private set
 
     /**
-     * Vrai une seule fois, au premier branchement réussi : l'écran annonce le dossier créé et
-     * rappelle de le ranger dans « Maison » ([annonceVue] le marque comme lu).
+     * Vrai une seule fois, au premier branchement réussi sur ce téléphone : l'écran annonce le
+     * dossier et rappelle de le ranger dans « Maison » ([annonceVue] le marque comme lu).
+     * Pas au simple retour d'un téléphone déjà branché, ni après une mise à jour de l'app.
      */
     var annonceDossier by mutableStateOf(false)
         private set
@@ -67,7 +68,7 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
         preferences.dossierAnnonce = true
     }
 
-    /** Bouton « Connecter Google Drive » (ou « Réessayer »). */
+    /** Bouton « Brancher le Drive » (ou « Réessayer »). */
     fun connecter() {
         if (branchement?.isActive == true) return
         etat = EtatDrive.EnCours
@@ -99,11 +100,12 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Déjà branché sur ce téléphone : on revérifie en silence. Si Google réclame à nouveau son
-     * écran, l'accueil repropose le bouton ; sans réseau, le compte reste affiché « hors ligne ».
+     * Déjà branché sur ce téléphone : on revérifie en silence, le compte reste affiché. Si
+     * Google réclame à nouveau son écran, l'accueil repropose le bouton ; sans réseau, le
+     * compte reste affiché « hors ligne ».
      */
     private fun verifierAuLancement(compte: String) {
-        etat = EtatDrive.EnCours
+        etat = EtatDrive.Verification(compte)
         branchement = viewModelScope.launch {
             when (val autorisation = DriveCarnet.demanderAutorisation(contexte)) {
                 is Autorisation.Accordee -> preparerDossier(autorisation.compte)
@@ -121,9 +123,10 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
     /** Le compte est autorisé ; reste à trouver ou créer le dossier de l'app. */
     private suspend fun preparerDossier(compte: String) {
         etat = try {
+            val premierBranchement = preferences.dossierId == null
             val dossier = DriveCarnet.dossier(contexte)
             preferences.memoriser(compte, dossier.id)
-            if (!preferences.dossierAnnonce) annonceDossier = true
+            if (premierBranchement && !preferences.dossierAnnonce) annonceDossier = true
             EtatDrive.Pret(compte)
         } catch (annulation: CancellationException) {
             throw annulation
@@ -134,7 +137,8 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
             EtatDrive.Erreur(refus.message ?: "Le Drive a refusé la demande.")
         } catch (panne: IOException) {
             when {
-                !DriveCarnet.estPanneReseau(panne) -> EtatDrive.Erreur("Le Drive ne répond pas correctement : ${panne.message}")
+                // Pas le message brut de l'exception : souvent de l'anglais technique.
+                !DriveCarnet.estPanneReseau(panne) -> EtatDrive.Erreur("Le Drive ne répond pas correctement. Réessaie dans un moment.")
                 // « Hors ligne » seulement si ce branchement-là est déjà mémorisé : au premier
                 // branchement, rien ne serait vérifié au lancement suivant.
                 brancheMemorise(compte) -> EtatDrive.Pret(compte, horsLigne = true)
@@ -150,9 +154,17 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
 
     // ── Mise à jour en ligne ────────────────────────────────────────────────────
 
-    /** « Plus tard » : tient jusqu'au prochain lancement de l'app, rotation comprise. */
+    /**
+     * « Plus tard » : la Semaine n'en parle plus jusqu'au prochain lancement (rotation
+     * comprise), mais Réglages la propose toujours.
+     */
     fun ecarterMiseAJour() {
-        if (maj !is EtatMiseAJour.Telechargement) maj = EtatMiseAJour.Aucune
+        maj = when (val courante = maj) {
+            is EtatMiseAJour.Disponible -> EtatMiseAJour.Ecartee(courante.versionNom)
+            is EtatMiseAJour.AAutoriser -> EtatMiseAJour.Ecartee(courante.versionNom)
+            is EtatMiseAJour.Echec -> EtatMiseAJour.Ecartee(courante.versionNom)
+            else -> courante
+        }
     }
 
     /** « Mettre à jour ». [ouvrirReglages] présente l'écran « sources inconnues » s'il le faut. */
@@ -174,8 +186,23 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
                 // L'installateur du système prend la main ; si on l'annule, l'offre reste là.
                 EtatMiseAJour.Disponible(aInstaller.versionNom)
             } catch (echec: IOException) {
-                EtatMiseAJour.Echec(aInstaller.versionNom, echec.message ?: "réseau indisponible")
+                EtatMiseAJour.Echec(aInstaller.versionNom, causeDuTelechargement(echec))
             }
         }
     }
+}
+
+/** Les refus que `MiseAJour` écrit lui-même, en français. */
+private val MESSAGES_MAJ = listOf("Téléchargement ", "Fichier téléchargé ")
+
+/**
+ * Ce que l'utilisateur lit après un téléchargement raté : jamais le message brut d'une
+ * exception (souvent de l'anglais technique, « Unable to resolve host… »).
+ */
+internal fun causeDuTelechargement(echec: IOException): String = when {
+    DriveCarnet.estPanneReseau(echec) -> "pas de réseau, réessaie une fois connecté"
+    // « Téléchargement refusé (code 404). » devient « téléchargement refusé (code 404) ».
+    echec.message?.let { m -> MESSAGES_MAJ.any(m::startsWith) } == true ->
+        echec.message!!.trimEnd('.').replaceFirstChar { it.lowercase() }
+    else -> "le téléchargement s'est coupé"
 }

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="barre">#1C3462</color>
     <color name="fond_fenetre">#0E131A</color>
 </resources>

@@ -31,6 +31,7 @@ ICONES = {
     "description": False,
     "schedule": False,
     "refresh": False,
+    "info": False,
 }
 BASE = "https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/{nom}/{variante}/24px.svg"
 SORTIE = Path(__file__).resolve().parent.parent / "app/src/main/res/drawable"

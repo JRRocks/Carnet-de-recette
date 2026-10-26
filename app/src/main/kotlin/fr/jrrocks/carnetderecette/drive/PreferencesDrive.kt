@@ -27,8 +27,9 @@ class PreferencesDrive(contexte: Context) {
         preferences.edit().putString(CLE_COMPTE, compte).putString(CLE_DOSSIER, dossierId).apply()
     }
 
+    /** Oublie le branchement ; l'annonce du dossier, déjà faite, ne revient pas. */
     fun oublier() {
-        preferences.edit().clear().apply()
+        preferences.edit().remove(CLE_COMPTE).remove(CLE_DOSSIER).apply()
     }
 
     private companion object {

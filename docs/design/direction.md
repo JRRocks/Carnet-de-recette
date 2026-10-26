@@ -45,17 +45,23 @@ recette dans un rond (le « 207 » reste du texte).
 Composants : `ui/composants/LigneDeTemps.kt` (une ligne), `PlanADeux.kt` (deux lignes).
 
 - Trait vertical de **6 dp** : bleu émail (primary) pour la semaine, cobalt ou ocre pour
-  chaque cuisinier.
+  chaque cuisinier. Devant ce qui n'est pas encore dans l'app, il garde ses 6 dp et sa
+  couleur, **en tirets** : jamais mince ni gris.
 - Marqueurs de 24 dp : **plein** = fait, **creux** (anneau d'encre de 3 dp) = à faire,
   **cerclé** (32 dp, cœur plein) = en cours, **pointillé** (outline) = pas encore dans l'app.
 - L'étape en cours porte son nom sur une **plaque** (fond plaque, coins de 4 dp, headlineMedium).
 - Découpe : marqueurs **ronds**. Chauffe : marqueurs **carrés** (coins de 6 dp). La forme ne
   change jamais d'un écran à l'autre ; la place peut changer (en séance, ta ligne est à gauche).
-- Passer la main : un **tube** de 12 dp entre les deux traits (fond clair, contour d'encre),
-  et la phrase en clair dessous, dans la colonne de gauche.
+- Plan à deux : deux traits proches du bord (28 et 72 dp), **une seule colonne de texte**
+  (100 dp), les tâches dans l'ordre du temps, chacune sur le trait de son rôle. Chaque libellé
+  garde presque toute la largeur, même à 200 %.
+- Passer la main : un **tube** de 12 dp entre les deux traits (fond clair, contour d'encre ;
+  rempli de la couleur de qui reçoit une fois la main passée), et la phrase en clair à côté.
 - Pastille d'un cuisinier : l'initiale **à l'encre** sur fond clair, dans un contour de 3 dp
   de sa couleur (`Pastille.kt`). Le remplissage de couleur est réservé aux étapes faites.
-  Sans profil (lot 1), la pastille est vide et le rôle est écrit en toutes lettres.
+  Jamais vide : vide, elle ressemblerait à un bouton radio ou à une case à cocher. Sans profil
+  (lot 1), on montre la **tête de ligne** du rôle (marqueur plein sur le départ de son trait)
+  et le rôle en toutes lettres (`LegendeRoles`), sans prénom inventé.
 - Chaque rangée dessine son propre tronçon (`drawBehind`), jamais un dessin unique derrière la
   liste : il suit la hauteur réelle du texte jusqu'à 200 %.
 - TalkBack : chaque rangée fusionne sa sémantique et dit son état (« Fait », « En cours »…).
@@ -83,12 +89,18 @@ est actif) :
 - La séance de cuisine est en plein écran, sans barre de navigation, écran allumé.
 - Indicateur de l'onglet actif en secondaryContainer, **jamais** couleur plaque ; l'état se lit
   aussi par l'icône pleine et le libellé gras.
-- Un point (Badge) sur Réglages quand le Drive ou une mise à jour attend un geste ; Réglages dit
-  la même chose en toutes lettres.
+- Un point (Badge) bleu, pas carmin, sur Réglages quand le Drive ou une mise à jour attend un
+  geste (pas pendant un téléchargement) ; Réglages dit la même chose en toutes lettres.
 - Les libellés suivent la taille de police jusqu'à 120 %, puis s'arrêtent : au-delà, quatre
   libellés ne tiennent plus sur 360 dp. Les titres et le contenu suivent jusqu'au bout.
-- Retour système : d'un autre onglet, il ramène à la Semaine ; de la Semaine, il quitte l'app.
-- Bord à bord : la barre bleu nuit passe sous la barre d'état (icônes claires).
+- Retour système : d'un autre onglet, il ramène à la Semaine ; de la Semaine, il quitte l'app
+  (retour prédictif activé).
+- Bord à bord : la barre bleu nuit passe sous la barre d'état (icônes claires) ; l'encoche de
+  la caméra est respectée (`safeDrawing`).
+- À partir de 600 dp de large (tablette, téléphone en paysage), un **rail** remplace la barre
+  du bas, et le contenu se limite à 640 dp, centré.
+- Le bouton flottant se replie sur son icône au-delà de 150 % de police ; TalkBack lit la
+  phrase entière (« Réessayer de brancher le Drive »).
 
 ## Les écrans cibles (lots 2 à 6)
 
@@ -119,14 +131,20 @@ Les états du Drive et de la mise à jour s'affichent en **lignes d'état** plei
 (`LigneEtat.kt` : icône, phrase qui dit la cause et quoi faire, actions), jamais en boîte de
 dialogue : rien n'interrompt quelqu'un en pleine cuisine.
 
-- Ordre : erreur, puis mise à jour, puis hors ligne ; **au plus deux** à la fois.
-- L'erreur du Drive s'écrit sous l'étape « Drive du foyer » ; le bouton flottant devient
-  « Réessayer ».
+- Sur la Semaine, en tête : la mise à jour, puis « hors ligne » ; **au plus deux**. L'erreur du
+  Drive s'écrit sous l'étape « Drive du foyer », et le bouton flottant devient « Réessayer ».
+- Au lancement d'un téléphone déjà branché, l'app revérifie le Drive **en silence** : l'étape
+  reste faite, le compte reste affiché, rien ne clignote.
 - La mise à jour : « La version X est prête » avec « Plus tard » et « Mettre à jour » ; pendant
-  le téléchargement, une barre de progression et le pourcentage ; « Plus tard » tient jusqu'au
-  prochain lancement. Jamais pendant une séance, jamais dans le Scanner.
-- Le premier branchement réussi s'annonce une fois par un snackbar (« Dossier prêt. Déplace-le
-  dans « Maison » »).
+  le téléchargement, une barre de progression et le pourcentage (annoncés une fois à TalkBack,
+  pas à chaque pour cent). « Plus tard » efface la ligne de la Semaine jusqu'au prochain
+  lancement ; Réglages propose toujours la version. Réglages écrit « 0.2 installée », jamais
+  « à jour » : sans réponse de GitHub, l'app ne peut pas le savoir. Jamais pendant une séance,
+  jamais dans le Scanner.
+- Les causes s'écrivent en français : jamais le message brut d'une exception.
+- Le premier branchement d'un téléphone s'annonce une fois, par un snackbar qui attend
+  « Compris » (« Dossier prêt sur le Drive. S'il n'est pas encore dans « Maison »,
+  déplace-le. »).
 - La couleur ne porte jamais seule un état : icône et phrase l'accompagnent toujours. L'ocre ne
   sert jamais aux alertes.
 
@@ -153,8 +171,12 @@ onglets, rien qui pulse en continu. Animations système coupées : coupe franche
 ## Vérifier avant chaque aperçu
 
 Les tests `app/src/test/…/capture/` rendent chaque onglet en PNG (Robolectric) : 360 dp de
-large, clair et sombre, police à 100 %, 130 % et 200 %, et 412 dp. On regarde les images
-(`app/build/captures/`), puis on les montre à l'utilisateur.
+large, clair et sombre, police à 100 %, 130 % et 200 %, 412 dp, et en paysage (rail). On
+regarde les images (`app/build/captures/`), puis on les montre à l'utilisateur.
+
+Ce que les captures ne montrent pas : la barre d'état, la barre de navigation du système et
+l'encoche (Robolectric ne les dessine pas). Un passage sur téléphone ou émulateur, en portrait
+et en paysage, reste à faire avec le premier aperçu.
 
 ## Écarts assumés par rapport à la fiche d'origine
 
@@ -162,5 +184,9 @@ large, clair et sombre, police à 100 %, 130 % et 200 %, et 412 dp. On regarde l
   depuis une icône d'état ; pas d'icône Drive dans la barre du haut.
 - Une fois branché, l'étape « Drive du foyer » reste affichée comme faite, avec le compte :
   c'est le retour visible du branchement.
-- Ligne de mise à jour : bouton plein bleu nuit, le bouton tonal disparaîtrait sur le fond de
-  la ligne.
+- Ligne de mise à jour : bouton plein (bleu nuit en clair, bleu plaque en sombre), le bouton
+  tonal disparaîtrait sur le fond de la ligne.
+- Plan à deux : traits à 28 et 72 dp et texte à 100 dp (fiche : 28, 60 et 88 dp), pour que le
+  tube reste visible entre les marqueurs.
+- La clé « En pointillé : pas encore dans l'app » est posée au-dessus de la ligne, visible dès
+  l'ouverture, avec un anneau plus petit que ceux des étapes.

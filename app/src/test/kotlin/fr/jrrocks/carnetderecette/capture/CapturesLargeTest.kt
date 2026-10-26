@@ -58,7 +58,7 @@ class CapturesLargeTest {
         val etat = EtatCarnet(
             EtatDrive.Pret("foyer@example.org"),
             EtatMiseAJour.Disponible("0.3"),
-            "0.2-correspondance",
+            "0.2",
             LocalDate.of(2026, 10, 26),
         )
         compose.setContent {

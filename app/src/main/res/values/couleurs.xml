@@ -2,6 +2,8 @@
 <resources>
     <!-- Bleu nuit émaillé de la barre (ui/theme/Couleurs.kt, plaque claire). -->
     <color name="fond_icone">#14284B</color>
-    <!-- Fond de la fenêtre avant que Compose dessine : la faïence, sans flash blanc. -->
+    <!-- Avant que Compose dessine (API 26 à 30, sans écran de démarrage système) : la barre
+         d'état prend déjà le bleu nuit de la barre, le fond la faïence. Pas de flash gris. -->
+    <color name="barre">#14284B</color>
     <color name="fond_fenetre">#F4F6F7</color>
 </resources>

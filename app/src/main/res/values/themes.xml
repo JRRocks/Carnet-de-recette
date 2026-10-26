@@ -3,5 +3,7 @@
     <!-- Thème de la fenêtre avant que Compose prenne la main : sans barre d'action. -->
     <style name="Theme.Carnet" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/fond_fenetre</item>
+        <item name="android:statusBarColor">@color/barre</item>
+        <item name="android:navigationBarColor">@color/fond_fenetre</item>
     </style>
 </resources>

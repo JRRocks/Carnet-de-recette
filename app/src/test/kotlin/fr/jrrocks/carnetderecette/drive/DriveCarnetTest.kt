@@ -292,4 +292,22 @@ class DriveCarnetTest {
         }
         return -1
     }
+
+    /**
+     * Typographie française des messages affichés : espace insécable (U+00A0) devant « : ; ! ? »
+     * et à l'intérieur des guillemets, jamais une espace ordinaire qui laisserait le signe seul
+     * en début de ligne à grande taille de police.
+     */
+    @Test
+    fun `les messages affiches ont des espaces insecables`() {
+        val messages = listOf(
+            DriveCarnet.MOTIF_RESEAU,
+            DriveCarnet.MOTIF_HORS_LIGNE,
+            DriveCarnet.MOTIF_ACCES_RETIRE,
+            DriveCarnet.exceptionPour(401, "GET", null).message!!,
+            DriveCarnet.exceptionPour(500, "POST", """{"error":{"message":"Oups"}}""").message!!,
+        )
+        val espaceOrdinaire = Regex(" [:;!?»]|« ")
+        messages.forEach { assertFalse(it, espaceOrdinaire.containsMatchIn(it)) }
+    }
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sans ce fichier, values-v27 (clair) l'emporterait sur values-night en sombre. -->
+    <style name="Theme.Carnet" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/fond_fenetre</item>
+        <item name="android:statusBarColor">@color/barre</item>
+        <item name="android:navigationBarColor">@color/fond_fenetre</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

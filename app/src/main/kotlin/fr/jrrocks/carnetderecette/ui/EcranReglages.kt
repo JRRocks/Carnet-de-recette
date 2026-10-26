@@ -36,8 +36,8 @@ fun EcranReglages(etat: EtatCarnet, actions: ActionsCarnet, marges: PaddingValue
         SectionApplication(etat, actions)
         Separateur()
         EnTete("Cuisine")
-        Rangee(R.drawable.ic_group, "Cuisiniers", "Qui découpe, qui chauffe : pas encore dans cette version.")
-        Rangee(R.drawable.ic_blender, "Matériel", "Le hachoir et les autres appareils : pas encore dans cette version.")
+        Rangee(R.drawable.ic_group, "Cuisiniers", "Qui découpe, qui chauffe\u00A0: pas encore dans l'app.")
+        Rangee(R.drawable.ic_blender, "Matériel", "Le hachoir et les autres appareils\u00A0: pas encore dans l'app.")
         Separateur()
         EnTete("À propos")
         Rangee(
@@ -51,19 +51,25 @@ fun EcranReglages(etat: EtatCarnet, actions: ActionsCarnet, marges: PaddingValue
 @Composable
 private fun SectionDrive(drive: EtatDrive, actions: ActionsCarnet) {
     EnTete("Google Drive")
-    Rangee(R.drawable.ic_account_circle, "Compte", (drive as? EtatDrive.Pret)?.compte ?: "Aucun compte branché")
+    val compte = when (drive) {
+        is EtatDrive.Pret -> drive.compte
+        is EtatDrive.Verification -> drive.compte
+        else -> null
+    }
+    Rangee(R.drawable.ic_account_circle, "Compte", compte ?: "Aucun compte branché")
     Rangee(
         R.drawable.ic_folder,
         "Dossier",
-        if (drive is EtatDrive.Pret) {
-            "« ${DriveCarnet.NOM_DOSSIER} », à ranger dans « Maison » sur le Drive"
+        if (compte != null) {
+            "«\u00A0${DriveCarnet.NOM_DOSSIER}\u00A0», sur le Drive du foyer"
         } else {
-            "Créé au branchement : « ${DriveCarnet.NOM_DOSSIER} »"
+            "Créé au branchement\u00A0: «\u00A0${DriveCarnet.NOM_DOSSIER}\u00A0»"
         },
     )
     when (drive) {
         EtatDrive.NonConnecte -> Rangee(R.drawable.ic_add_to_drive, "État", "Pas encore branché")
-        EtatDrive.EnCours -> Rangee(R.drawable.ic_schedule, "État", "Connexion au compte Google…")
+        EtatDrive.EnCours -> Rangee(R.drawable.ic_schedule, "État", "Google te demande l'accord…")
+        is EtatDrive.Verification -> Rangee(R.drawable.ic_schedule, "État", "Branché, vérification en cours")
         is EtatDrive.Erreur -> Rangee(R.drawable.ic_sync_problem, "État", drive.motif)
         is EtatDrive.Pret -> if (drive.horsLigne) {
             Rangee(R.drawable.ic_cloud_off, "État", DriveCarnet.MOTIF_HORS_LIGNE)
@@ -74,7 +80,7 @@ private fun SectionDrive(drive: EtatDrive, actions: ActionsCarnet) {
     val bouton = when (drive) {
         EtatDrive.NonConnecte -> "Brancher le Drive"
         is EtatDrive.Erreur -> "Réessayer"
-        EtatDrive.EnCours, is EtatDrive.Pret -> null
+        EtatDrive.EnCours, is EtatDrive.Verification, is EtatDrive.Pret -> null
     }
     if (bouton != null) {
         BoutonCarnet(
@@ -90,9 +96,10 @@ private fun SectionDrive(drive: EtatDrive, actions: ActionsCarnet) {
 @Composable
 private fun SectionApplication(etat: EtatCarnet, actions: ActionsCarnet) {
     EnTete("Application")
+    // « Installée », jamais « à jour » : sans réponse de GitHub, l'app ne peut pas le savoir.
     // La suite (version prête, téléchargement, échec) est dite une seule fois, par la ligne d'état.
-    val version = if (etat.maj is EtatMiseAJour.Aucune) "${etat.versionNom} · à jour" else "${etat.versionNom} installée"
-    Rangee(R.drawable.ic_system_update, "Version", version)
+    val enAttente = etat.maj !is EtatMiseAJour.Aucune
+    Rangee(if (enAttente) R.drawable.ic_system_update else R.drawable.ic_info, "Version", "${etat.versionNom} installée")
     LigneMiseAJour(etat.maj, actions, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
 }
 

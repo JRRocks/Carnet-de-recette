@@ -32,6 +32,8 @@ colors:
   sombre-ligne-decoupe: "#7A9DE8"
   sombre-ligne-chauffe: "#E8BE5C"
   sombre-erreur: "#FFB3C1"
+  sombre-action: "#B2C6F2"
+  sombre-sur-action: "#0C2350"
 typography:
   display:
     fontFamily: "Atkinson Hyperlegible Next"
@@ -147,8 +149,9 @@ deux couleurs réservées aux deux cuisiniers.
 
 ### Primary
 - **Bleu nuit émaillé** (#14284B) : barre d'application, bouton flottant, boutons pleins,
-  plaque de l'étape en cours. En sombre, la barre passe à #1C3462 et la plaque s'éclaircit
-  (#B2C6F2, texte #0C2350) pour rester un repère.
+  plaque de l'étape en cours. En sombre, la barre passe à #1C3462, et la plaque, les boutons
+  pleins et le bouton flottant s'éclaircissent (#B2C6F2, texte #0C2350) : le bleu nuit sombre
+  ne se détacherait du fond qu'à 1,5:1.
 - **Bleu émail** (#1E3A70, primary) : le trait de la ligne de la semaine, les en-têtes de
   section, les boutons texte.
 
@@ -209,7 +212,9 @@ partir de 600 dp). Le schéma de ligne pose son trait à 36 dp du bord et son te
 rangée d'étape de 72 dp au moins, extensible avec le texte. Listes en rangées de 72 dp avec
 séparateurs, pas de cartes. Le contenu laisse 96 dp sous lui quand le bouton flottant est
 affiché. Aucune hauteur fixe sur un conteneur de texte : tout suit la taille de police
-jusqu'à 200 % (les libellés de la barre de navigation s'arrêtent à 120 %).
+jusqu'à 200 % (les libellés de la barre de navigation s'arrêtent à 120 %). À partir de
+600 dp de large, un rail de navigation remplace la barre du bas et le contenu se limite à
+640 dp, centré.
 
 ## Elevation & Depth
 
@@ -230,16 +235,19 @@ aux indicateurs de progression.
 
 ### Buttons
 - **Shape :** coins de 8 dp (`BoutonCarnet`, car `ButtonDefaults.shape` ne lit pas le thème).
-- **Plein :** bleu nuit, texte blanc, 48 dp de haut au moins.
+- **Plein :** bleu nuit et texte blanc en clair, bleu plaque et texte bleu nuit en sombre,
+  48 dp de haut au moins.
 - **Contour, texte :** Material 3, mêmes coins.
 - **Bouton flottant étendu :** bleu nuit, 64 dp, coins de 12 dp ; il porte l'action du moment
-  et disparaît (sans être grisé) quand aucune action n'est possible.
+  et disparaît (sans être grisé) quand aucune action n'est possible. Au-delà de 150 % de
+  police, il se replie sur son icône.
 
 ### Navigation
 - Barre de navigation Material 3, quatre destinations (Semaine, Carnet, Cuisine, Réglages),
   fond surfaceContainer. Onglet actif : icône pleine, libellé gras en encre, indicateur
   secondaryContainer. Onglets inactifs : icône au contour, libellé en encre douce.
-- Un point sur Réglages quand le Drive ou une mise à jour attend un geste.
+- Un point bleu (primary), jamais carmin, sur Réglages quand le Drive ou une mise à jour
+  attend un geste. Rail Material 3 à partir de 600 dp.
 
 ### Lignes d'état
 - Pleine largeur, coins de 8 dp, icône de 24 dp, phrase en body 16 sp qui dit la cause et
@@ -252,11 +260,14 @@ aux indicateurs de progression.
   détail en body 16 sp. En-têtes de section en title 16 sp bleu émail.
 
 ### Le schéma de ligne (signature)
-- Trait de 6 dp ; marqueurs de 24 dp : plein (fait), creux à anneau d'encre de 3 dp (à faire),
-  cerclé de 32 dp à cœur plein (en cours), pointillé couleur contour (pas encore dans l'app).
+- Trait de 6 dp, en tirets de même épaisseur et même couleur devant ce qui n'est pas encore
+  dans l'app ; marqueurs de 24 dp : plein (fait), creux à anneau d'encre de 3 dp (à faire),
+  cerclé de 32 dp à cœur plein (en cours), anneau en pointillé couleur contour (pas encore).
 - L'étape en cours porte son nom sur une plaque. Découpe en ronds, chauffe en carrés ; un tube
-  de 12 dp entre les deux traits quand l'un passe la main à l'autre.
-- Pastille d'un cuisinier : initiale à l'encre dans un contour de 3 dp de sa couleur.
+  de 12 dp entre les deux traits quand l'un passe la main à l'autre. Plan à deux : traits à
+  28 et 72 dp, une seule colonne de texte à 100 dp.
+- Pastille d'un cuisinier : initiale à l'encre dans un contour de 3 dp de sa couleur, jamais
+  vide ; sans profil, la tête de ligne du rôle et son nom.
 
 ## Do's and Don'ts
 
@@ -273,4 +284,6 @@ aux indicateurs de progression.
 - **Don't** empiler des cartes identiques, ni poser un sur-titre au-dessus d'un titre.
 - **Don't** utiliser l'ocre pour une alerte, ni le cobalt ou l'ocre pour du texte.
 - **Don't** peindre l'indicateur de la barre de navigation en bleu nuit de plaque.
+- **Don't** amincir ou griser le trait de 6 dp, ni montrer une pastille vide.
+- **Don't** afficher le message brut d'une exception.
 - **Don't** afficher un élément graphique HelloFresh.

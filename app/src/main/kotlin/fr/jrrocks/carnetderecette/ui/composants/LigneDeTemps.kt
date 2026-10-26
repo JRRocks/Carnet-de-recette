@@ -1,11 +1,8 @@
 package fr.jrrocks.carnetderecette.ui.composants
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,17 +24,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 
 /*
  * Le geste signature de la direction « Correspondance » : le schéma de ligne. Un trait
- * vertical de 6 dp, des marqueurs ronds (fait, en cours, à faire), et un trait en pointillé
- * pour ce qui n'existe pas encore dans l'app. Chaque rangée dessine son propre tronçon
- * (`drawBehind`) plutôt qu'un dessin unique derrière la liste : il suit la hauteur réelle du
- * texte, jusqu'à 200 % de taille de police (relecture des juges).
+ * vertical de 6 dp et des marqueurs : plein (fait), cerclé (en cours), creux (à faire), en
+ * pointillé (pas encore dans l'app). Devant ce qui n'existe pas encore, le trait garde ses 6 dp
+ * et sa couleur, en tirets : un trait mince ou gris ferait du schéma un stepper ordinaire
+ * (risque 2 de la direction).
+ *
+ * Chaque rangée dessine son propre tronçon (`drawBehind`) plutôt qu'un dessin unique derrière
+ * la liste : il suit la hauteur réelle du texte, jusqu'à 200 % de taille de police.
  *
  * Le monde du plan de ligne ne prête que la forme : les textes de l'app ne parlent jamais de
  * station, de terminus ou de correspondance.
@@ -59,25 +63,32 @@ data class Etape(
 )
 
 /** Abscisse du trait depuis le bord gauche, et début du texte. */
-private val AXE = 36.dp
-private val DEBUT_TEXTE = 72.dp
+internal val AXE = 36.dp
+internal val DEBUT_TEXTE = 72.dp
 private val TRAIT = 6.dp
-private val POINTILLE = 3.dp
+private val TIRET = 8.dp
+private val ESPACE_TIRET = 6.dp
 private val ANNEAU = 3.dp
-private val RAYON = 12.dp
+internal val RAYON = 12.dp
 private val RAYON_EN_COURS = 16.dp
 private val HAUT = 12.dp
 
+/**
+ * Une ligne d'étapes. [stylePlaque] : le style de l'étape en cours sur sa plaque ; plus petit
+ * dans une illustration, pour qu'elle ne dépasse pas le titre de l'écran. [sous] ajoute un
+ * contenu sous le texte d'une étape (motif d'erreur, légende), dans la colonne à 72 dp.
+ */
 @Composable
 fun LigneDeTemps(
     etapes: List<Etape>,
     modifier: Modifier = Modifier,
-    enCours: @Composable ColumnScope.(Etape) -> Unit = {},
+    stylePlaque: TextStyle = MaterialTheme.typography.headlineMedium,
+    sous: @Composable ColumnScope.(Etape) -> Unit = {},
 ) {
     Column(modifier.fillMaxWidth()) {
         etapes.forEachIndexed { i, etape ->
-            RangeeEtape(etape, precedente = etapes.getOrNull(i - 1), suivante = etapes.getOrNull(i + 1)) {
-                if (etape.etat == EtatEtape.EN_COURS) enCours(etape)
+            RangeeEtape(etape, stylePlaque, precedente = etapes.getOrNull(i - 1), suivante = etapes.getOrNull(i + 1)) {
+                sous(etape)
             }
         }
     }
@@ -86,6 +97,7 @@ fun LigneDeTemps(
 @Composable
 private fun RangeeEtape(
     etape: Etape,
+    stylePlaque: TextStyle,
     precedente: Etape?,
     suivante: Etape?,
     contenu: @Composable ColumnScope.() -> Unit,
@@ -95,7 +107,7 @@ private fun RangeeEtape(
     val enCours = etape.etat == EtatEtape.EN_COURS
     // Le marqueur s'aligne sur le milieu de la première ligne du titre, en sp : il suit la
     // taille de police du système.
-    val styleTitre: TextStyle = if (enCours) typo.headlineMedium else typo.titleLarge
+    val styleTitre: TextStyle = if (enCours) stylePlaque else typo.titleLarge
     val decalagePlaque = if (enCours) 4.dp else 0.dp
     val trait = couleurs.primary
     val pointille = couleurs.outline
@@ -111,26 +123,34 @@ private fun RangeeEtape(
                 val x = AXE.toPx()
                 val y = HAUT.toPx() + decalagePlaque.toPx() + styleTitre.lineHeight.toPx() / 2
                 if (precedente != null) {
-                    troncon(x, 0f, y, if (etape.etat == EtatEtape.PAS_ENCORE) pointille else trait, etape.etat == EtatEtape.PAS_ENCORE)
+                    troncon(x, 0f, y, trait, aVenir = etape.etat == EtatEtape.PAS_ENCORE)
                 }
                 if (suivante != null) {
-                    val pasEncore = suivante.etat == EtatEtape.PAS_ENCORE
-                    troncon(x, y, size.height, if (pasEncore) pointille else trait, pasEncore)
+                    troncon(x, y, size.height, trait, aVenir = suivante.etat == EtatEtape.PAS_ENCORE)
                 }
                 marqueur(Offset(x, y), etape.etat, rond = true, couleurLigne = trait, encre = encre, fondMarqueur = fondMarqueur, fond = fond, pointille = pointille)
             }
-            .semantics(mergeDescendants = true) { stateDescription = etape.etat.description }
+            .semantics(mergeDescendants = true) {
+                heading()
+                stateDescription = etape.etat.description
+            }
             .padding(start = DEBUT_TEXTE, end = 16.dp, top = HAUT, bottom = 20.dp),
     ) {
         if (enCours) {
-            Plaque(etape.titre)
+            Plaque(etape.titre, style = stylePlaque)
         } else {
             // Le titre et son complément (date, état) partagent la même ligne de base.
             Row {
                 Text(etape.titre, style = styleTitre, color = couleurs.onSurface, modifier = Modifier.weight(1f).alignByBaseline())
                 etape.fin?.let {
                     Spacer(Modifier.width(12.dp))
-                    Text(it, style = typo.bodyMedium, color = couleurs.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(
+                        it,
+                        // Chiffres tabulaires : les dates s'alignent d'une étape à l'autre.
+                        style = typo.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                        color = couleurs.onSurfaceVariant,
+                        modifier = Modifier.alignByBaseline(),
+                    )
                 }
             }
         }
@@ -146,20 +166,22 @@ private fun RangeeEtape(
     }
 }
 
-/** Un tronçon de trait : plein (6 dp, couleur de la ligne) ou en pointillé (pas encore dans l'app). */
-internal fun DrawScope.troncon(x: Float, y0: Float, y1: Float, couleur: Color, pointille: Boolean) {
+/**
+ * Un tronçon de trait de 6 dp : plein, ou en tirets devant ce qui n'est pas encore dans l'app.
+ * Les tirets sont étirés pour qu'un tronçon compte un nombre entier de motifs : il commence par
+ * un tiret et finit par un blanc, et deux rangées voisines se raccordent sans tiret double.
+ */
+internal fun DrawScope.troncon(x: Float, y0: Float, y1: Float, couleur: Color, aVenir: Boolean = false) {
     if (y1 <= y0) return
-    if (pointille) {
-        drawLine(
-            couleur,
-            Offset(x, y0),
-            Offset(x, y1),
-            strokeWidth = POINTILLE.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 5.dp.toPx())),
-        )
+    val effet = if (aVenir) {
+        val motif = (TIRET + ESPACE_TIRET).toPx()
+        val nombre = ((y1 - y0) / motif).roundToInt().coerceAtLeast(1)
+        val echelle = (y1 - y0) / (nombre * motif)
+        PathEffect.dashPathEffect(floatArrayOf(TIRET.toPx() * echelle, ESPACE_TIRET.toPx() * echelle))
     } else {
-        drawLine(couleur, Offset(x, y0), Offset(x, y1), strokeWidth = TRAIT.toPx())
+        null
     }
+    drawLine(couleur, Offset(x, y0), Offset(x, y1), strokeWidth = TRAIT.toPx(), pathEffect = effet)
 }
 
 /**
@@ -213,31 +235,31 @@ internal fun DrawScope.marqueur(
     }
 }
 
-/** La légende de la ligne : les deux rôles et leur forme, et le pointillé de ce qui viendra. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * La clé de l'anneau en pointillé, au-dessus de la ligne, visible dès l'ouverture : un anneau
+ * plus petit que ceux des étapes et une phrase de légende, pour qu'on ne la prenne pas pour une
+ * étape. L'état de chaque étape est aussi dit à TalkBack par sa rangée.
+ */
 @Composable
-fun LegendeLigne(modifier: Modifier = Modifier) {
+fun ClePasEncore(modifier: Modifier = Modifier) {
     val couleurs = MaterialTheme.colorScheme
-    FlowRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    val pointille = couleurs.outline
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(end = 16.dp)
+            .clearAndSetSemantics { contentDescription = "Anneau en pointillé\u00A0: pas encore dans l'app" },
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Role.entries.forEach { role ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Pastille(role, taille = 32.dp)
-                Spacer(Modifier.width(8.dp))
-                Text(role.libelle, style = MaterialTheme.typography.bodyLarge, color = couleurs.onSurface)
-            }
+        Spacer(Modifier.width(16.dp))
+        Canvas(Modifier.size(16.dp)) {
+            drawCircle(
+                pointille,
+                radius = size.minDimension / 2 - 1.dp.toPx(),
+                style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.dp.toPx()))),
+            )
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val fond = couleurs.surface
-            val pointille = couleurs.outline
-            Canvas(Modifier.size(32.dp)) {
-                marqueur(center, EtatEtape.PAS_ENCORE, rond = true, couleurLigne = pointille, encre = pointille, fondMarqueur = fond, fond = fond, pointille = pointille)
-            }
-            Spacer(Modifier.width(8.dp))
-            Text("Pas encore dans l'app", style = MaterialTheme.typography.bodyLarge, color = couleurs.onSurface)
-        }
+        Spacer(Modifier.width(8.dp))
+        Text("En pointillé\u00A0: pas encore dans l'app", style = MaterialTheme.typography.bodyMedium, color = couleurs.onSurfaceVariant)
     }
 }

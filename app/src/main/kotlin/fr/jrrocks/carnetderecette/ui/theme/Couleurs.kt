@@ -87,6 +87,8 @@ internal val SchemaSombre: ColorScheme = darkColorScheme(
  * [barre] porte la coque (barre d'application, bouton d'action), [plaque] l'étiquette de
  * l'étape en cours ; [surBarre] et [surPlaque], le texte qui s'y pose. En clair, les deux
  * sont le même bleu nuit ; en sombre, la plaque s'éclaircit pour rester un repère.
+ * [action] porte les boutons pleins et le bouton flottant : bleu nuit en clair, bleu plaque
+ * en sombre (le bleu nuit sombre ne se détacherait du fond qu'à 1,5:1).
  */
 @Immutable
 data class CouleursCarnet(
@@ -96,6 +98,8 @@ data class CouleursCarnet(
     val surBarre: Color,
     val plaque: Color,
     val surPlaque: Color,
+    val action: Color,
+    val surAction: Color,
 )
 
 internal val CouleursClaires = CouleursCarnet(
@@ -105,6 +109,8 @@ internal val CouleursClaires = CouleursCarnet(
     surBarre = Color(0xFFFFFFFF),
     plaque = Color(0xFF14284B),
     surPlaque = Color(0xFFFFFFFF),
+    action = Color(0xFF14284B),
+    surAction = Color(0xFFFFFFFF),
 )
 
 internal val CouleursSombres = CouleursCarnet(
@@ -114,6 +120,8 @@ internal val CouleursSombres = CouleursCarnet(
     surBarre = Color(0xFFE1E8FA),
     plaque = Color(0xFFB2C6F2),
     surPlaque = Color(0xFF0C2350),
+    action = Color(0xFFB2C6F2),
+    surAction = Color(0xFF0C2350),
 )
 
 val LocalCouleursCarnet = staticCompositionLocalOf { CouleursClaires }

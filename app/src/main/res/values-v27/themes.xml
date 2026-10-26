@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- API 27 et plus : boutons de navigation sombres sur la faïence claire. -->
+    <style name="Theme.Carnet" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fond_fenetre</item>
+        <item name="android:statusBarColor">@color/barre</item>
+        <item name="android:navigationBarColor">@color/fond_fenetre</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

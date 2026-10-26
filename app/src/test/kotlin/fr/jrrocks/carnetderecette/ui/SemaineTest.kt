@@ -7,17 +7,34 @@ import org.junit.Test
 class SemaineTest {
 
     @Test
-    fun `le prochain vendredi est celui de la semaine, ou aujourd hui le vendredi`() {
-        assertEquals(LocalDate.of(2026, 10, 30), prochainVendredi(LocalDate.of(2026, 10, 26)))
-        assertEquals(LocalDate.of(2026, 10, 30), prochainVendredi(LocalDate.of(2026, 10, 30)))
-        assertEquals(LocalDate.of(2026, 11, 6), prochainVendredi(LocalDate.of(2026, 10, 31)))
+    fun `le vendredi de reference regarde devant en semaine et derriere le week-end`() {
+        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 10, 26))) // lundi
+        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 10, 29))) // jeudi
+        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 10, 30))) // vendredi
+        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 10, 31))) // samedi, jour de l'import
+        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 11, 1))) // dimanche
+        assertEquals(LocalDate.of(2026, 11, 6), vendrediDeReference(LocalDate.of(2026, 11, 2))) // lundi suivant
+    }
+
+    @Test
+    fun `le titre et les dates de la ligne parlent de la meme semaine`() {
+        for (jour in generateSequence(LocalDate.of(2026, 10, 24)) { it.plusDays(1) }.take(14)) {
+            val etat = EtatCarnet(EtatDrive.NonConnecte, EtatMiseAJour.Aucune, "0.2", jour)
+            val vendredi = vendrediDeReference(jour)
+            val etapes = etapesDeLaSemaine(etat)
+            assertEquals(dateCourte(vendredi), etapes.first { it.titre == "Vendredi" }.fin)
+            assertEquals(dateCourte(vendredi.plusDays(1)), etapes.first { it.titre == "Samedi" }.fin)
+            assertEquals("Semaine ${numeroSemaine(vendredi)}", titreSemaine(jour))
+        }
     }
 
     @Test
     fun `numero de semaine des agendas et date courte en francais`() {
         assertEquals(44, numeroSemaine(LocalDate.of(2026, 10, 30)))
         assertEquals(53, numeroSemaine(LocalDate.of(2026, 12, 31)))
-        assertEquals("30 oct.", dateCourte(LocalDate.of(2026, 10, 30)))
+        assertEquals("30\u00A0oct.", dateCourte(LocalDate.of(2026, 10, 30)))
+        assertEquals("1er\u00A0janv.", dateCourte(LocalDate.of(2027, 1, 1)))
+        assertEquals("1er\u00A0mai", dateCourte(LocalDate.of(2027, 5, 1)))
     }
 
     @Test
@@ -28,6 +45,12 @@ class SemaineTest {
         assertEquals(true, etat(EtatDrive.Erreur("motif")).actionRequise)
         assertEquals(false, etat(EtatDrive.EnCours).actionRequise)
         assertEquals(false, etat(EtatDrive.Pret("foyer@example.org", horsLigne = true)).actionRequise)
+        assertEquals(false, etat(EtatDrive.Verification("foyer@example.org")).actionRequise)
         assertEquals(true, etat(EtatDrive.Pret("foyer@example.org"), EtatMiseAJour.Disponible("0.3")).actionRequise)
+        assertEquals(true, etat(EtatDrive.Pret("foyer@example.org"), EtatMiseAJour.AAutoriser("0.3")).actionRequise)
+        assertEquals(true, etat(EtatDrive.Pret("foyer@example.org"), EtatMiseAJour.Echec("0.3", "motif")).actionRequise)
+        // Rien à faire pendant le téléchargement, ni après « Plus tard ».
+        assertEquals(false, etat(EtatDrive.Pret("foyer@example.org"), EtatMiseAJour.Telechargement("0.3", 0.4f)).actionRequise)
+        assertEquals(false, etat(EtatDrive.Pret("foyer@example.org"), EtatMiseAJour.Ecartee("0.3")).actionRequise)
     }
 }

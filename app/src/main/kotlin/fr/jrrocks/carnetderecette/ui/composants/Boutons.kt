@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -16,7 +15,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import fr.jrrocks.carnetderecette.ui.theme.Carnet
 
@@ -26,7 +24,7 @@ import fr.jrrocks.carnetderecette.ui.theme.Carnet
  * `shapes.medium` et une hauteur minimale de 48 dp.
  */
 
-enum class SorteBouton { PLEIN, TONAL, CONTOUR, TEXTE }
+enum class SorteBouton { PLEIN, CONTOUR, TEXTE }
 
 @Composable
 fun BoutonCarnet(
@@ -35,10 +33,9 @@ fun BoutonCarnet(
     modifier: Modifier = Modifier,
     sorte: SorteBouton = SorteBouton.PLEIN,
     @DrawableRes icone: Int? = null,
-    hauteur: Dp = 48.dp,
 ) {
     val forme = MaterialTheme.shapes.medium
-    val m = modifier.heightIn(min = hauteur)
+    val m = modifier.heightIn(min = 48.dp)
     val contenu: @Composable () -> Unit = {
         if (icone != null) {
             Icon(painterResource(icone), contentDescription = null, modifier = Modifier.size(20.dp))
@@ -51,9 +48,8 @@ fun BoutonCarnet(
             onClick = onClick,
             modifier = m,
             shape = forme,
-            colors = ButtonDefaults.buttonColors(containerColor = Carnet.couleurs.barre, contentColor = Carnet.couleurs.surBarre),
+            colors = ButtonDefaults.buttonColors(containerColor = Carnet.couleurs.action, contentColor = Carnet.couleurs.surAction),
         ) { contenu() }
-        SorteBouton.TONAL -> FilledTonalButton(onClick = onClick, modifier = m, shape = forme) { contenu() }
         SorteBouton.CONTOUR -> OutlinedButton(onClick = onClick, modifier = m, shape = forme) { contenu() }
         SorteBouton.TEXTE -> TextButton(onClick = onClick, modifier = m, shape = forme) { contenu() }
     }

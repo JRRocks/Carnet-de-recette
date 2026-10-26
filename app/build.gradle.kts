@@ -56,7 +56,7 @@ android {
         // recopie dans le nom de l'APK publié et l'app compare le sien à celui-là. L'oublier
         // en publiant, c'est publier une version que personne n'installera.
         versionCode = 2
-        versionName = "0.2-correspondance"
+        versionName = "0.2"
     }
     buildTypes {
         release {

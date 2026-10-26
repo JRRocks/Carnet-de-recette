@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Calque monochrome de l'icône (icônes à thème, Android 13 et plus) : le même schéma de ligne
+  en un seul aplat, que le système teinte lui-même. Le jour des anneaux est découpé par la
+  règle de remplissage evenOdd.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M39,34h6v10h-6z M39,64h6v3h-6z M42,34m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0 M55,32h18a2,2 0,0 1,0 4h-18a2,2 0,0 1,0 -4z M55,72h12a2,2 0,0 1,0 4h-12a2,2 0,0 1,0 -4z M57,50h18a4,4 0,0 1,0 8h-18a4,4 0,0 1,0 -8z M42,54m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M42,54m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0 M42,54m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M42,74m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0 M42,74m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+</vector>

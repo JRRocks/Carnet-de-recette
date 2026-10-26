@@ -186,7 +186,7 @@ object DriveCarnet {
             return if (estPanneReseau(indisponible)) {
                 Autorisation.Echec(MOTIF_RESEAU, reseau = true)
             } else {
-                Autorisation.Echec("Google n'a pas rendu l'adresse du compte : ${indisponible.message}")
+                Autorisation.Echec("Google n'a pas rendu l'adresse du compte\u00A0: ${indisponible.message}")
             }
         } catch (corrompu: SerializationException) {
             null
@@ -368,12 +368,12 @@ object DriveCarnet {
     // ── Parts pures, testables sans réseau ni compte ────────────────────────────
 
     /** Hors ligne pendant un branchement : rien n'est mémorisé, il faudra réessayer. */
-    const val MOTIF_RESEAU = "Pas de réseau : réessaie une fois connecté."
+    const val MOTIF_RESEAU = "Pas de réseau\u00A0: réessaie une fois connecté."
 
     /** Hors ligne au lancement, téléphone déjà branché : le branchement mémorisé tient. */
-    const val MOTIF_HORS_LIGNE = "Hors ligne : le Drive sera vérifié au prochain lancement."
+    const val MOTIF_HORS_LIGNE = "Hors ligne\u00A0: le Drive sera vérifié au prochain lancement."
 
-    const val MOTIF_ACCES_RETIRE = "Google a retiré l'accès au Drive. Reconnecte le compte."
+    const val MOTIF_ACCES_RETIRE = "Google a retiré l'accès au Drive. Appuie sur «\u00A0Réessayer\u00A0» pour le rebrancher."
 
     /**
      * Une panne de réseau (rien n'a répondu), par opposition à un refus ([RefusDrive]). On
@@ -403,13 +403,13 @@ object DriveCarnet {
             // (« [8] Unknown error [status=UNREGISTERED_ON_API_CONSOLE] ») : le texte décide.
             code == CommonStatusCodes.DEVELOPER_ERROR || texte?.contains("UNREGISTERED_ON_API_CONSOLE") == true ->
                 Autorisation.Echec(
-                    "Google ne reconnaît pas l'app : le nom de package ou l'empreinte SHA-1 du client " +
+                    "Google ne reconnaît pas l'app\u00A0: le nom de package ou l'empreinte SHA-1 du client " +
                         "OAuth Android ne correspond pas (docs/google-cloud.md, étape 4).",
                 )
             code == CommonStatusCodes.CANCELED -> Autorisation.Echec("Autorisation annulée.")
             code == null -> Autorisation.Echec(texte ?: "Google n'a pas répondu à la demande d'autorisation.")
             // Le texte de Google est gardé : c'est lui qu'on cherche quand le code ne suffit pas.
-            else -> Autorisation.Echec("Google a refusé la demande d'autorisation (code $code" + (texte?.let { " : $it" } ?: "") + ").")
+            else -> Autorisation.Echec("Google a refusé la demande d'autorisation (code $code" + (texte?.let { "\u00A0: $it" } ?: "") + ").")
         }
     }
 
@@ -437,7 +437,7 @@ object DriveCarnet {
         val erreur = lireErreurDrive(corps)
         val raison = erreur?.raison
         if (code == 401 || (code == 403 && raison in RAISONS_AUTORISATION)) {
-            return AutorisationRevoquee("Drive a refusé l'appel $methode : HTTP $code (autorisation retirée).")
+            return AutorisationRevoquee("Drive a refusé l'appel $methode\u00A0: HTTP $code (autorisation retirée).")
         }
         if (raison == "accessNotConfigured" || raison == "SERVICE_DISABLED") {
             return RefusDrive(
@@ -445,7 +445,7 @@ object DriveCarnet {
             )
         }
         val detail = listOfNotNull(erreur?.message, raison?.let { "($it)" }).joinToString(" ")
-        return RefusDrive("Drive a refusé l'appel $methode : HTTP $code" + if (detail.isBlank()) "." else " — $detail")
+        return RefusDrive("Drive a refusé l'appel $methode\u00A0: HTTP $code" + if (detail.isBlank()) "." else " — $detail")
     }
 
     /**
