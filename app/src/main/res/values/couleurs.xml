@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="fond_icone">#2E7D32</color>
+    <!-- Bleu nuit émaillé de la barre (ui/theme/Couleurs.kt, plaque claire). -->
+    <color name="fond_icone">#14284B</color>
+    <!-- Fond de la fenêtre avant que Compose dessine : la faïence, sans flash blanc. -->
+    <color name="fond_fenetre">#F4F6F7</color>
 </resources>

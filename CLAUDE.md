@@ -53,6 +53,14 @@ même, relancer après une courte pause.
 écrans en PNG sous Robolectric, sans émulateur (méthode de Popote). Les images sortent dans
 `app/build/captures/` : les regarder avec `Read`, puis les montrer à l'utilisateur.
 
+## Interface
+
+Avant de toucher un écran : [`docs/design/direction.md`](docs/design/direction.md) (le
+pourquoi, les écrans cibles des lots suivants) et [`DESIGN.md`](DESIGN.md) (les valeurs).
+Le thème et les composants communs sont dans `ui/theme/` et `ui/composants/` ; on s'en sert
+plutôt que de recréer un bouton, une ligne d'état ou un schéma. Aucun mot de métro dans les
+textes (station, terminus, correspondance) : le monde se voit, il ne se lit pas.
+
 ## Après chaque changement de l'APK : aperçu
 
 1. Incrémenter `versionCode` et `versionName` dans `app/build.gradle.kts`.

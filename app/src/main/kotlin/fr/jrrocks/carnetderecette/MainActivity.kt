@@ -1,43 +1,48 @@
 package fr.jrrocks.carnetderecette
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import fr.jrrocks.carnetderecette.drive.DriveCarnet
 import fr.jrrocks.carnetderecette.ui.AccueilViewModel
-import fr.jrrocks.carnetderecette.ui.DialogueMiseAJour
-import fr.jrrocks.carnetderecette.ui.EcranAccueil
-import fr.jrrocks.carnetderecette.ui.ThemeCarnet
+import fr.jrrocks.carnetderecette.ui.ActionsCarnet
+import fr.jrrocks.carnetderecette.ui.CarnetApp
+import fr.jrrocks.carnetderecette.ui.EtatCarnet
+import fr.jrrocks.carnetderecette.ui.Onglet
+import fr.jrrocks.carnetderecette.ui.theme.ThemeCarnet
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // La barre bleu nuit passe sous la barre d'état : icônes claires, en clair comme en sombre.
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
         setContent {
-            ThemeCarnet {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    Application(viewModel(), Modifier.safeDrawingPadding())
-                }
-            }
+            ThemeCarnet { Application(viewModel()) }
         }
     }
 }
 
-/** Relie l'accueil à son ViewModel ; seuls les lanceurs d'activité vivent ici. */
+/** Relie la coque à son ViewModel ; seuls les lanceurs d'activité vivent ici. */
 @Composable
-private fun Application(vm: AccueilViewModel, modifier: Modifier = Modifier) {
+private fun Application(vm: AccueilViewModel) {
     val contexte = LocalContext.current
 
     val lanceurConsentement = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
@@ -51,20 +56,29 @@ private fun Application(vm: AccueilViewModel, modifier: Modifier = Modifier) {
         }
     }
 
-    EcranAccueil(
-        etat = vm.etat,
-        versionNom = BuildConfig.VERSION_NAME,
-        onConnecter = vm::connecter,
-        modifier = modifier,
-    )
-
-    vm.publication?.let { publication ->
-        DialogueMiseAJour(
-            publication = publication,
-            progression = vm.progression,
-            message = vm.messageMaj,
-            onMettreAJour = { vm.mettreAJour(ouvrirReglages = contexte::startActivity) },
-            onPlusTard = vm::ecarterMiseAJour,
-        )
+    val snackbars = remember { SnackbarHostState() }
+    // Une seule fois, au premier branchement réussi. Interrompue par une rotation, l'annonce revient.
+    LaunchedEffect(vm.annonceDossier) {
+        if (vm.annonceDossier) {
+            snackbars.showSnackbar(
+                "Dossier « ${DriveCarnet.NOM_DOSSIER} » prêt. Déplace-le dans « Maison » sur le Drive.",
+                actionLabel = "Compris",
+                duration = SnackbarDuration.Long,
+            )
+            vm.annonceVue()
+        }
     }
+
+    var onglet by rememberSaveable { mutableStateOf(Onglet.SEMAINE) }
+    CarnetApp(
+        etat = EtatCarnet(vm.etat, vm.maj, BuildConfig.VERSION_NAME, LocalDate.now()),
+        onglet = onglet,
+        onOnglet = { onglet = it },
+        actions = ActionsCarnet(
+            brancher = vm::connecter,
+            mettreAJour = { vm.mettreAJour(ouvrirReglages = contexte::startActivity) },
+            majPlusTard = vm::ecarterMiseAJour,
+        ),
+        snackbars = snackbars,
+    )
 }

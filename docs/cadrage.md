@@ -29,6 +29,7 @@ suit ses tâches sur son téléphone, à l'écran et à l'oreille.
 | Légal | Code public sur GitHub, contenu HelloFresh en usage privé seulement, app jamais vendue | 2026-10-23 |
 | Mode dégradé | Place réservée dans le code, **moteurs non codés** tant que l'accès HelloFresh tient | 2026-10-23 |
 | Alerte | Une sonde prévient si l'accès HelloFresh casse, pour passer en mode dégradé | 2026-10-23 |
+| Visuel | Direction « **Correspondance** » (schéma de ligne, bleu nuit, Atkinson Hyperlegible Next), **4 onglets** : Semaine, Carnet, Cuisine, Réglages. La mise à jour se propose en ligne d'état, plus en boîte de dialogue ([direction](design/direction.md), [DESIGN.md](../DESIGN.md)) | 2026-10-26 |
 
 ### Pourquoi la récupération est passée de Cowork à l'app (test du 2026-10-23)
 
@@ -333,7 +334,7 @@ SourceRecette
 | Lot | Contenu | Validation |
 |---|---|---|
 | 0 | Ce cadrage | ✅ 2026-10-23 |
-| 1 | Squelette Android (Kotlin, Compose, minSdk 26), clé debug versionnée, CI d'aperçu et de publication (`maj-auto-github`), connexion Drive `drive.file` et création du dossier | 🟡 Codé le 2026-10-25, relu (relecture adversariale, 9 défauts corrigés) le 2026-10-26. Reste, dans l'ordre : clé release et secrets ([publication](publication.md)), configuration Google Cloud ([guide](google-cloud.md)), essai sur téléphone |
+| 1 | Squelette Android (Kotlin, Compose, minSdk 26), clé debug versionnée, CI d'aperçu et de publication (`maj-auto-github`), connexion Drive `drive.file` et création du dossier | 🟡 Codé le 2026-10-25, relu (relecture adversariale, 9 défauts corrigés) le 2026-10-26, visuel refait (« Correspondance », version 0.2) le 2026-10-26. Reste, dans l'ordre : clé release et secrets ([publication](publication.md)), configuration Google Cloud ([guide](google-cloud.md)), essai sur téléphone |
 | 2 | Vendredi dans l'app : sonde, menu de la semaine, scan des étiquettes (`scan-multimode` adapté), lecture des pages recettes, dépôt sur Drive | Un vrai vendredi |
 | 3 | Skill Cowork du vendredi soir (sans accès web) : confirmation, tâches, hachoir, segments audio, fichier de semaine | Un vrai vendredi soir |
 | 4 | Import du samedi (sélecteur), catalogue local, images en cache, bandeau mode dégradé | — |

@@ -16,6 +16,13 @@ class PreferencesDrive(contexte: Context) {
 
     val dossierId: String? get() = preferences.getString(CLE_DOSSIER, null)
 
+    /** Le dossier créé a été annoncé une fois (avec le rappel de le ranger dans « Maison »). */
+    var dossierAnnonce: Boolean
+        get() = preferences.getBoolean(CLE_ANNONCE, false)
+        set(valeur) {
+            preferences.edit().putBoolean(CLE_ANNONCE, valeur).apply()
+        }
+
     fun memoriser(compte: String, dossierId: String) {
         preferences.edit().putString(CLE_COMPTE, compte).putString(CLE_DOSSIER, dossierId).apply()
     }
@@ -27,5 +34,6 @@ class PreferencesDrive(contexte: Context) {
     private companion object {
         const val CLE_COMPTE = "compte"
         const val CLE_DOSSIER = "dossier_id"
+        const val CLE_ANNONCE = "dossier_annonce"
     }
 }

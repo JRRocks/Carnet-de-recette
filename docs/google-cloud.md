@@ -78,7 +78,7 @@ Google Cloud ».
 ## Étape 5 : premier essai (fin du lot 1)
 
 1. Installer l'APK d'aperçu ([publication.md](publication.md)), puis appuyer sur
-   « Connecter Google Drive ».
+   « Brancher le Drive ».
 2. Choisir le compte partagé et accepter l'écran de consentement.
 3. Vérifier que le dossier `Carnet de recettes` apparaît dans le Drive, puis le **déplacer
    dans `Maison/`**.
@@ -91,7 +91,7 @@ Google Cloud ».
 | « Google ne reconnaît pas l'app : le nom de package ou l'empreinte SHA-1… » (`DEVELOPER_ERROR`, ou `UNREGISTERED_ON_API_CONSOLE` quel que soit son code) | Le client OAuth ne porte pas ce package ou cette empreinte, ou l'APK n'est pas signé de la clé release | Recalculer l'empreinte release et comparer (étape 4) ; installer un APK d'aperçu, pas un APK de debug |
 | « L'API Google Drive n'est pas activée dans le projet Google Cloud… » | Étape 2 oubliée, ou activée depuis moins de quelques minutes | Étape 2, puis réessayer |
 | « Google a refusé la demande d'autorisation (code N : …) » | Autre refus de Play Services ; le texte de Google suit le code | Revoir les étapes 2 à 4, puis chercher le code et le texte affichés |
-| « Google a retiré l'accès au Drive. Reconnecte le compte. » | L'accès a été retiré depuis le compte Google (Sécurité → applications tierces) | « Connecter Google Drive » : l'écran de consentement revient |
+| « Google a retiré l'accès au Drive. Reconnecte le compte. » | L'accès a été retiré depuis le compte Google (Sécurité → applications tierces) | « Brancher le Drive » : l'écran de consentement revient |
 | `access_denied` sur l'écran Google | App restée en test et compte non déclaré testeur | Étape 3.5 |
 | « Pas de réseau : réessaie une fois connecté. » | Hors ligne pendant un branchement | « Réessayer » une fois le réseau revenu |
 | « Hors ligne : le Drive sera vérifié au prochain lancement. » | Téléphone déjà branché, lancé sans réseau | Rien : le branchement mémorisé tient |

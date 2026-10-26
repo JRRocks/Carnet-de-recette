@@ -55,8 +55,8 @@ android {
         // `versionCode` décide de la mise à jour en ligne (`maj/MiseAJour.kt`) : la CI le
         // recopie dans le nom de l'APK publié et l'app compare le sien à celui-là. L'oublier
         // en publiant, c'est publier une version que personne n'installera.
-        versionCode = 1
-        versionName = "0.1-squelette"
+        versionCode = 2
+        versionName = "0.2-correspondance"
     }
     buildTypes {
         release {

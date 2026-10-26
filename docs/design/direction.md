@@ -1,0 +1,166 @@
+# Direction visuelle « Correspondance »
+
+> Choisie par l'utilisateur le 2026-10-26, parmi trois directions esquissées à égalité de
+> finition (méthode [impeccable](https://github.com/pbakaus/impeccable), mode Operate), avec
+> **quatre onglets dont Réglages**. Les corrections des deux juges sont intégrées ci-dessous.
+> Les valeurs (couleurs, tailles, formes) font foi dans [`DESIGN.md`](../../DESIGN.md) et dans
+> le code (`app/src/main/kotlin/…/ui/theme/`) ; ce document dit **pourquoi** et **où**.
+
+## L'idée
+
+Une recette à deux se lit comme un schéma de ligne : chaque cuisinier suit sa suite de
+tâches, et les dépendances sont des points où l'un passe la main à l'autre. L'écran répond
+d'un coup d'œil à trois questions : où j'en suis (le marqueur cerclé), ce qui vient (le
+marqueur creux suivant), où l'on se croise (le tube entre les deux lignes).
+
+Refusé : l'écran type des apps de box-repas (photo en tête, cartes identiques empilées, vert
+frais, boutons pilule, « Étape 3/7 ») et sa version sans photo du lot 0 (vert « herbes »,
+deux cartes empilées). Refusés aussi le livre de grand-mère (crème, serif, terracotta) et le
+cockpit (noir, néon, jauges).
+
+## Ce que le monde prête, et rien d'autre
+
+Source : la signalétique des transports en commun (plan de ligne au-dessus des portes,
+plaques émaillées, faïence des quais). Il prête quatre choses :
+
+1. **La typo** : une sans humaniste de signalétique, ici Atkinson Hyperlegible Next
+   (Braille Institute, OFL), dessinée pour la basse vision. Jamais sous la graisse 500.
+2. **La palette** : fond de faïence froid (jamais crème), bleu nuit émaillé pour la coque
+   (barre, bouton flottant, plaques), deux couleurs de ligne sur l'axe bleu-jaune : cobalt
+   pour la découpe, ocre pour la chauffe.
+3. **La densité** : celle d'un panneau lu de loin. Peu d'éléments, grands, un message par zone.
+4. **Le geste signature** : le schéma de ligne (voir plus bas).
+
+Tout le reste est Material 3 : barre de navigation, boutons, snackbars, listes.
+
+**Le vocabulaire n'est pas prêté.** Aucun texte de l'app ne dit station, terminus,
+correspondance, « tu es ici », « ma ligne », « chacun sa ligne », « prochaine station ». On
+dit étape, tâche, passer la main, attendre. Le monde se voit, il ne se lit pas.
+
+Exclus aussi : logo ou police de transporteur, couleurs exactes de lignes réelles, numéro de
+recette dans un rond (le « 207 » reste du texte).
+
+## Le geste signature : le schéma de ligne
+
+Composants : `ui/composants/LigneDeTemps.kt` (une ligne), `PlanADeux.kt` (deux lignes).
+
+- Trait vertical de **6 dp** : bleu émail (primary) pour la semaine, cobalt ou ocre pour
+  chaque cuisinier.
+- Marqueurs de 24 dp : **plein** = fait, **creux** (anneau d'encre de 3 dp) = à faire,
+  **cerclé** (32 dp, cœur plein) = en cours, **pointillé** (outline) = pas encore dans l'app.
+- L'étape en cours porte son nom sur une **plaque** (fond plaque, coins de 4 dp, headlineMedium).
+- Découpe : marqueurs **ronds**. Chauffe : marqueurs **carrés** (coins de 6 dp). La forme ne
+  change jamais d'un écran à l'autre ; la place peut changer (en séance, ta ligne est à gauche).
+- Passer la main : un **tube** de 12 dp entre les deux traits (fond clair, contour d'encre),
+  et la phrase en clair dessous, dans la colonne de gauche.
+- Pastille d'un cuisinier : l'initiale **à l'encre** sur fond clair, dans un contour de 3 dp
+  de sa couleur (`Pastille.kt`). Le remplissage de couleur est réservé aux étapes faites.
+  Sans profil (lot 1), la pastille est vide et le rôle est écrit en toutes lettres.
+- Chaque rangée dessine son propre tronçon (`drawBehind`), jamais un dessin unique derrière la
+  liste : il suit la hauteur réelle du texte jusqu'à 200 %.
+- TalkBack : chaque rangée fusionne sa sémantique et dit son état (« Fait », « En cours »…).
+  Un schéma d'exemple est lu comme une seule phrase, jamais comme de vraies tâches.
+
+Ce qui ferait tomber la direction dans le banal, à ne pas adoucir : un trait de 2 dp, des
+marqueurs plus petits, la disparition de la plaque ou du tube.
+
+## Navigation
+
+Barre de navigation Material 3, quatre destinations, icône et libellé (Material Symbols
+Outlined graisse 600, importées en vecteurs par `outils/icones.py`, pleines quand l'onglet
+est actif) :
+
+| Onglet | Rôle | Aujourd'hui (lot 1) |
+|---|---|---|
+| **Semaine** | Accueil : où en est la semaine, ce qui vient, l'action du moment (bouton flottant) | Étape « Drive du foyer » + les quatre temps en pointillé |
+| **Carnet** | Les recettes importées, groupées par semaine ; « Importer la semaine » le samedi | État vide qui explique le samedi |
+| **Cuisine** | Le plan à deux de ce soir, puis la séance plein écran | État vide avec un plan d'exemple |
+| **Réglages** | Drive, version et mise à jour, cuisiniers, matériel, licences | Drive, version, à propos |
+
+- Le Scanner n'a pas d'onglet : c'est un geste du vendredi, lancé par le bouton flottant de la
+  Semaine (« Scanner les box »), en plein écran. Il reste accessible les autres jours (une
+  livraison peut être décalée).
+- La séance de cuisine est en plein écran, sans barre de navigation, écran allumé.
+- Indicateur de l'onglet actif en secondaryContainer, **jamais** couleur plaque ; l'état se lit
+  aussi par l'icône pleine et le libellé gras.
+- Un point (Badge) sur Réglages quand le Drive ou une mise à jour attend un geste ; Réglages dit
+  la même chose en toutes lettres.
+- Les libellés suivent la taille de police jusqu'à 120 %, puis s'arrêtent : au-delà, quatre
+  libellés ne tiennent plus sur 360 dp. Les titres et le contenu suivent jusqu'au bout.
+- Retour système : d'un autre onglet, il ramène à la Semaine ; de la Semaine, il quitte l'app.
+- Bord à bord : la barre bleu nuit passe sous la barre d'état (icônes claires).
+
+## Les écrans cibles (lots 2 à 6)
+
+À garder en tête en codant chaque lot ; données d'exemple factices.
+
+- **Semaine** (lot 5 en place) : la ligne Vendredi, Vendredi soir, Samedi, En cuisine, avec
+  dates en chiffres tabulaires au bout de la ligne ; l'étape courante en plaque ; sous
+  « En cuisine », la recette du soir et qui fait quoi (pastilles, nombre de tâches, durée).
+  Puis la liste des recettes de la semaine (rangées de 72 dp, pas de cartes). Le bouton
+  flottant suit l'étape : « Scanner les box », « Importer la semaine », « Cuisiner la 207 ».
+  L'étape courante se déduit des données (box scannées, semaine importée), pas du seul jour.
+- **Scanner** (lot 2) : aperçu caméra en moitié haute, tout ce qui se touche en moitié basse,
+  dernier résultat en grand (« 207 » en displaySmall tabulaire), sélecteur de personnes,
+  « Terminer » pleine largeur.
+- **Carnet** (lot 4) : liste groupée par semaine (en-têtes « Semaine 44 »), numéro en gras
+  tabulaire, vignette de 56 dp en bout de ligne, jamais d'image en tête ; fiche recette avec
+  onglets Plan, Ingrédients, Fiche d'origine.
+- **Cuisine** (lots 5 et 6) : « À deux | Seul », le plan à deux de ce soir, puis « Je suis… »
+  (premier usage) ou « Commencer mes tâches ».
+- **Séance** : la tâche en cours en headlineLarge (32 sp), les deux suivantes, l'attente de
+  l'autre ou le passage de main comme une rangée à part entière, dans l'ordre où la voix les
+  dira ; dock bas avec minuteur et « Relire » (72 dp) et « C'est fait » (72 dp, pleine largeur).
+  Pas d'« Étape 3/7 » ni de sur-titre.
+
+## États
+
+Les états du Drive et de la mise à jour s'affichent en **lignes d'état** pleine largeur
+(`LigneEtat.kt` : icône, phrase qui dit la cause et quoi faire, actions), jamais en boîte de
+dialogue : rien n'interrompt quelqu'un en pleine cuisine.
+
+- Ordre : erreur, puis mise à jour, puis hors ligne ; **au plus deux** à la fois.
+- L'erreur du Drive s'écrit sous l'étape « Drive du foyer » ; le bouton flottant devient
+  « Réessayer ».
+- La mise à jour : « La version X est prête » avec « Plus tard » et « Mettre à jour » ; pendant
+  le téléchargement, une barre de progression et le pourcentage ; « Plus tard » tient jusqu'au
+  prochain lancement. Jamais pendant une séance, jamais dans le Scanner.
+- Le premier branchement réussi s'annonce une fois par un snackbar (« Dossier prêt. Déplace-le
+  dans « Maison » »).
+- La couleur ne porte jamais seule un état : icône et phrase l'accompagnent toujours. L'ocre ne
+  sert jamais aux alertes.
+
+## Mouvement
+
+Un seul moment orchestré, « le trait avance », quand on touche « C'est fait » (lot 5) :
+l'anneau se resserre (150 ms), le tronçon suivant se remplit de la couleur de la ligne
+(250 ms), la liste remonte l'étape suivante (350 ms), le texte change en fondu (200 ms), le
+tout sous 600 ms ; l'audio suivant démarre sans attendre. Ailleurs : fondu de 200 ms entre
+onglets, rien qui pulse en continu. Animations système coupées : coupe franche.
+
+## Risques à surveiller sur les captures
+
+1. **Le costume** : une pastille ronde colorée avec une lettre évoque un pictogramme de ligne.
+   Parades en place : initiale à l'encre, carré pour la chauffe, aucun numéro dans un rond.
+2. **Le banal** : voir « Ce qui ferait tomber la direction dans le banal ».
+3. **L'ocre** (#9A6A00) tire vers le bronze sous une lumière chaude : sûr pour les daltoniens,
+   moins solaire. Ne pas l'éclaircir (il passerait sous 3:1).
+4. **En sombre**, la barre ne se détache du fond que par la teinte (1,5:1) ; l'identité repose
+   alors sur les plaques, claires.
+5. **Le zéro barré** d'Atkinson (« 3Ø ») est permanent : la police n'a pas de variante.
+6. Trois onglets sur quatre sont des états vides au lot 1 : ils expliquent ce qui viendra.
+
+## Vérifier avant chaque aperçu
+
+Les tests `app/src/test/…/capture/` rendent chaque onglet en PNG (Robolectric) : 360 dp de
+large, clair et sombre, police à 100 %, 130 % et 200 %, et 412 dp. On regarde les images
+(`app/build/captures/`), puis on les montre à l'utilisateur.
+
+## Écarts assumés par rapport à la fiche d'origine
+
+- Quatre onglets avec Réglages (choix de l'utilisateur) au lieu de Scanner + Foyer poussé
+  depuis une icône d'état ; pas d'icône Drive dans la barre du haut.
+- Une fois branché, l'étape « Drive du foyer » reste affichée comme faite, avec le compte :
+  c'est le retour visible du branchement.
+- Ligne de mise à jour : bouton plein bleu nuit, le bouton tonal disparaîtrait sur le fond de
+  la ligne.

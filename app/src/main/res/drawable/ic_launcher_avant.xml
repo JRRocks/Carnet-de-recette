@@ -1,19 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Le schéma de ligne de l'app, sur fond bleu nuit : une étape faite, l'étape en cours (anneau
+  et cœur) et une étape à venir (creuse), chacune avec sa ligne de texte. Zone sûre de l'icône
+  adaptative : le disque de 66 dp au centre du carré de 108 dp.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Couverture du carnet -->
+    <!-- Le trait -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M40,32h30a4,4 0,0 1,4 4v36a4,4 0,0 1,-4 4h-30z" />
-    <!-- Spirale -->
+        android:pathData="M39,34h6v40h-6z" />
+    <!-- Étape faite : pleine -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M34,38h10v4h-10z M34,48h10v4h-10z M34,58h10v4h-10z M34,68h10v4h-10z" />
-    <!-- Lignes de la page -->
+        android:pathData="M42,34m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    <!-- Étape en cours : anneau blanc, jour bleu nuit, cœur ocre -->
     <path
-        android:fillColor="#2E7D32"
-        android:pathData="M48,44h20v3h-20z M48,52h20v3h-20z M48,60h14v3h-14z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,54m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0" />
+    <path
+        android:fillColor="#14284B"
+        android:pathData="M42,54m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    <path
+        android:fillColor="#E8BE5C"
+        android:pathData="M42,54m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0" />
+    <!-- Étape à venir : creuse -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,74m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    <path
+        android:fillColor="#14284B"
+        android:pathData="M42,74m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+    <!-- Les lignes de texte : l'étape en cours plus marquée -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.6"
+        android:pathData="M55,32h18a2,2 0,0 1,0 4h-18a2,2 0,0 1,0 -4z M55,72h12a2,2 0,0 1,0 4h-12a2,2 0,0 1,0 -4z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M57,50h18a4,4 0,0 1,0 8h-18a4,4 0,0 1,0 -8z" />
 </vector>

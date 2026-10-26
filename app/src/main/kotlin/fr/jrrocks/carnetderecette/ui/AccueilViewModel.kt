@@ -39,22 +39,32 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
     var consentement by mutableStateOf<PendingIntent?>(null)
         private set
 
-    var publication by mutableStateOf<MiseAJour.Publication?>(null)
+    /** La mise à jour en ligne, affichée en ligne d'état sur la Semaine et dans Réglages. */
+    var maj by mutableStateOf<EtatMiseAJour>(EtatMiseAJour.Aucune)
         private set
 
-    /** Non nulle pendant le téléchargement d'une mise à jour. */
-    var progression by mutableStateOf<Float?>(null)
+    /**
+     * Vrai une seule fois, au premier branchement réussi : l'écran annonce le dossier créé et
+     * rappelle de le ranger dans « Maison » ([annonceVue] le marque comme lu).
+     */
+    var annonceDossier by mutableStateOf(false)
         private set
 
-    var messageMaj by mutableStateOf<String?>(null)
-        private set
-
+    private var publication: MiseAJour.Publication? = null
     private var branchement: Job? = null
     private var telechargement: Job? = null
 
     init {
-        viewModelScope.launch { publication = MiseAJour.publicationDuLancement(contexte) }
+        viewModelScope.launch {
+            publication = MiseAJour.publicationDuLancement(contexte)
+            publication?.let { maj = EtatMiseAJour.Disponible(it.versionNom) }
+        }
         preferences.compte?.let { verifierAuLancement(it) }
+    }
+
+    fun annonceVue() {
+        annonceDossier = false
+        preferences.dossierAnnonce = true
     }
 
     /** Bouton « Connecter Google Drive » (ou « Réessayer »). */
@@ -113,6 +123,7 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
         etat = try {
             val dossier = DriveCarnet.dossier(contexte)
             preferences.memoriser(compte, dossier.id)
+            if (!preferences.dossierAnnonce) annonceDossier = true
             EtatDrive.Pret(compte)
         } catch (annulation: CancellationException) {
             throw annulation
@@ -141,7 +152,7 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
 
     /** « Plus tard » : tient jusqu'au prochain lancement de l'app, rotation comprise. */
     fun ecarterMiseAJour() {
-        if (progression == null) publication = null
+        if (maj !is EtatMiseAJour.Telechargement) maj = EtatMiseAJour.Aucune
     }
 
     /** « Mettre à jour ». [ouvrirReglages] présente l'écran « sources inconnues » s'il le faut. */
@@ -149,21 +160,21 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
         val aInstaller = publication ?: return
         if (telechargement?.isActive == true) return
         if (!MiseAJour.peutInstaller(contexte)) {
-            messageMaj = "Autorise l'installation pour Carnet de recette, puis appuie à nouveau sur « Mettre à jour »."
+            maj = EtatMiseAJour.AAutoriser(aInstaller.versionNom)
             ouvrirReglages(MiseAJour.ecranSourcesInconnues(contexte))
             return
         }
-        messageMaj = null
-        progression = 0f
+        maj = EtatMiseAJour.Telechargement(aInstaller.versionNom, 0f)
         telechargement = viewModelScope.launch {
-            try {
-                val apk = MiseAJour.telecharger(contexte, aInstaller) { progression = it }
+            maj = try {
+                val apk = MiseAJour.telecharger(contexte, aInstaller) { fraction ->
+                    maj = EtatMiseAJour.Telechargement(aInstaller.versionNom, fraction)
+                }
                 MiseAJour.installer(contexte, apk)
-                publication = null
+                // L'installateur du système prend la main ; si on l'annule, l'offre reste là.
+                EtatMiseAJour.Disponible(aInstaller.versionNom)
             } catch (echec: IOException) {
-                messageMaj = "Téléchargement interrompu : ${echec.message}"
-            } finally {
-                progression = null
+                EtatMiseAJour.Echec(aInstaller.versionNom, echec.message ?: "réseau indisponible")
             }
         }
     }
