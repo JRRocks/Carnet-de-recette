@@ -309,8 +309,10 @@ SourceRecette
 | `maj-auto-github` | ✅ | Mise à jour de l'APK | Dépôt de code déjà public : les Releases peuvent être publiées directement ici |
 | Capteur de plantage (Popote, 🔬 candidat) | — | Rapport de plantage sans câble | À extraire d'abord dans la Library |
 
-> Le catalogue de la Library (`INDEX.md`, fiches) est sur la branche
-> `claude/library-docs-catalog-xkjytv`, **pas encore fusionnée dans `main`**.
+> Le catalogue de la Library (`INDEX.md`, fiches) n'est **pas encore fusionné dans `main`**.
+> Il est sur `claude/library-docs-catalog-xkjytv`, et les fiches mises à jour pour le Carnet
+> (variantes, deux patchs, « Utilisé dans ») sur `claude/recipe-app-planner-92zsww`, qui la
+> contient. C'est cette dernière qui fait foi pour les moteurs du Carnet.
 
 ## 12. Points à vérifier
 

@@ -99,7 +99,7 @@ private fun CarteDrive(etat: EtatDrive, onConnecter: () -> Unit) {
                     Text("Connecté : ${etat.compte}", style = MaterialTheme.typography.bodyMedium)
                     if (etat.horsLigne) {
                         Text(
-                            DriveCarnet.MOTIF_RESEAU,
+                            DriveCarnet.MOTIF_HORS_LIGNE,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

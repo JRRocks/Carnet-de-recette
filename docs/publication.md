@@ -69,7 +69,8 @@ car cette clé est publique ([google-cloud.md](google-cloud.md), « Pourquoi pas
 la clé debug »). Calcul de l'empreinte :
 
 ```bash
-keytool -list -v -keystore carnet-release.jks -alias carnet | grep SHA1
+keytool -list -v -keystore carnet-release.jks -alias carnet | grep SHA1              # Linux, macOS
+keytool -list -v -keystore carnet-release.jks -alias carnet | Select-String SHA1     # Windows PowerShell
 ```
 
 Puis [google-cloud.md](google-cloud.md), étape 4. Cette empreinte ne va **jamais** dans le

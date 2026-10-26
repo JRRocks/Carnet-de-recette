@@ -99,7 +99,11 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
                 is Autorisation.Accordee -> preparerDossier(autorisation.compte)
                 is Autorisation.AEcran -> etat = EtatDrive.NonConnecte
                 is Autorisation.Echec -> etat =
-                    if (autorisation.reseau) EtatDrive.Pret(compte, horsLigne = true) else EtatDrive.Erreur(autorisation.motif)
+                    if (autorisation.reseau && brancheMemorise(compte)) {
+                        EtatDrive.Pret(compte, horsLigne = true)
+                    } else {
+                        EtatDrive.Erreur(autorisation.motif)
+                    }
             }
         }
     }
@@ -114,17 +118,24 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
             throw annulation
         } catch (autorisation: DriveCarnet.AutorisationRevoquee) {
             preferences.oublier()
-            EtatDrive.Erreur("Google a retiré l'accès au Drive. Reconnecte le compte.")
-        } catch (reseau: IOException) {
-            if (DriveCarnet.estPanneReseau(reseau)) {
-                EtatDrive.Pret(compte, horsLigne = true)
-            } else {
-                EtatDrive.Erreur("Le Drive a refusé : ${reseau.message}")
+            EtatDrive.Erreur(DriveCarnet.MOTIF_ACCES_RETIRE)
+        } catch (refus: DriveCarnet.RefusDrive) {
+            EtatDrive.Erreur(refus.message ?: "Le Drive a refusé la demande.")
+        } catch (panne: IOException) {
+            when {
+                !DriveCarnet.estPanneReseau(panne) -> EtatDrive.Erreur("Le Drive ne répond pas correctement : ${panne.message}")
+                // « Hors ligne » seulement si ce branchement-là est déjà mémorisé : au premier
+                // branchement, rien ne serait vérifié au lancement suivant.
+                brancheMemorise(compte) -> EtatDrive.Pret(compte, horsLigne = true)
+                else -> EtatDrive.Erreur(DriveCarnet.MOTIF_RESEAU)
             }
         } catch (jamaisAutorise: IllegalStateException) {
             EtatDrive.NonConnecte
         }
     }
+
+    private fun brancheMemorise(compte: String): Boolean =
+        preferences.compte == compte && preferences.dossierId != null
 
     // ── Mise à jour en ligne ────────────────────────────────────────────────────
 

@@ -57,10 +57,14 @@ même, relancer après une courte pause.
 
 1. Incrémenter `versionCode` et `versionName` dans `app/build.gradle.kts`.
 2. Commit et push sur la branche de travail. `.github/workflows/apercu.yml` lance les tests
-   et attache l'APK à la pré-version `apercu-<versionName>`.
+   et, **si la clé release est posée**, attache l'APK à la pré-version `apercu-<versionName>`.
 3. Vérifier que le run se termine avec succès (`mcp__github__actions_list` /
-   `actions_get`), puis donner le lien :
+   `actions_get`) **et** que la pré-version existe (`mcp__github__get_release_by_tag`,
+   `apercu-<versionName>`). Si elle existe, donner le lien :
    `https://github.com/JRRocks/Carnet-de-recette/releases/tag/apercu-<versionName>`.
+   Sinon (étape « Publier la pré-version d'aperçu » sautée, run vert quand même), dire à
+   l'utilisateur que la clé release et ses secrets ne sont pas encore posés
+   (`docs/publication.md`, mise en place) au lieu de donner un lien mort.
 
 Une pré-version n'est jamais proposée en mise à jour par l'app : l'aperçu ne touche aucun
 téléphone tant que l'utilisateur ne l'installe pas lui-même.

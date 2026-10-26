@@ -62,9 +62,7 @@ jobs:
         id: cle
         env:
           KEYSTORE_BASE64: ${{ secrets.SIGNATURE_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.SIGNATURE_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.SIGNATURE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.SIGNATURE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           if [ -z "${KEYSTORE_BASE64:-}" ]; then
@@ -74,13 +72,12 @@ jobs:
           fi
           mkdir -p app/keystore-release
           echo "$KEYSTORE_BASE64" | base64 -d > app/keystore-release/carnet-release.jks
-          # `printf '%s\n'` et non `echo` : un mot de passe commençant par « -n » ou contenant
-          # une barre oblique inverse se ferait réécrire par `echo`.
+          # Les mots de passe ne passent PAS par ce fichier : `Properties.load` traiterait `\`
+          # comme un échappement. Gradle les lit dans l'environnement de l'étape de compilation
+          # (`SIGNATURE_STORE_PASSWORD`, `SIGNATURE_KEY_PASSWORD`, app/build.gradle.kts).
           {
             printf '%s\n' "storeFile=carnet-release.jks"
-            printf '%s\n' "storePassword=$STORE_PASSWORD"
             printf '%s\n' "keyAlias=$KEY_ALIAS"
-            printf '%s\n' "keyPassword=$KEY_PASSWORD"
           } > app/keystore-release/keystore.properties
           echo "release=true" >> "$GITHUB_OUTPUT"
 
@@ -90,6 +87,9 @@ jobs:
       - name: Compiler l'APK release
         id: apk
         if: steps.cle.outputs.release == 'true'
+        env:
+          SIGNATURE_STORE_PASSWORD: ${{ secrets.SIGNATURE_STORE_PASSWORD }}
+          SIGNATURE_KEY_PASSWORD: ${{ secrets.SIGNATURE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           ./gradlew :app:assembleRelease --stacktrace

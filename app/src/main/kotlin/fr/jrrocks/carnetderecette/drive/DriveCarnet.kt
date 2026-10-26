@@ -4,6 +4,7 @@ import android.accounts.Account
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.Identity
@@ -13,8 +14,8 @@ import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Scope
 import com.google.android.gms.tasks.Tasks
 import java.io.IOException
-import java.net.ConnectException
 import java.net.HttpURLConnection
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLEncoder
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ExecutionException
+import javax.net.ssl.SSLException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
@@ -53,8 +55,10 @@ import kotlinx.serialization.json.jsonPrimitive
  *  - les erreurs de Drive sont **lues** : seul un refus d'autorisation (401, ou 403
  *    `insufficientPermissions`/`authError`) devient [AutorisationRevoquee]. La version
  *    d'origine traitait tout 403 ainsi, y compris « API Drive non activée » ou une limite de
- *    débit : l'utilisateur était renvoyé reconnecter son compte sans fin ;
- *  - une panne de réseau est dite comme telle ([Autorisation.Echec.reseau]).
+ *    débit : l'utilisateur était renvoyé reconnecter son compte sans fin. Patch reporté dans
+ *    la Library le 2026-10-26 ;
+ *  - un refus de Drive ([RefusDrive]) se distingue d'une panne de réseau ([estPanneReseau]) ;
+ *  - un jeton refusé est retiré du cache de Play Services ([avecJeton]).
  *
  * **Non vérifiable ici.** Ni compte Google ni Play Services dans un conteneur : seules les
  * parts sans I/O se testent (`DriveCarnetTest`). Le reste se constate sur le téléphone.
@@ -90,11 +94,16 @@ object DriveCarnet {
     )
 
     /**
-     * Drive refuse le jeton (401, ou 403 de raison [RAISONS_AUTORISATION]) : réessayer ne
-     * changera rien tant que quelqu'un ne rouvre pas l'écran d'autorisation. Hérite
-     * d'[IOException] pour rester attrapable là où seul le cas général importe.
+     * Drive a répondu, mais par un refus (HTTP hors 2xx) : par opposition à une panne de
+     * réseau, où rien n'a répondu. Son message est déjà lisible tel quel ([exceptionPour]).
      */
-    class AutorisationRevoquee(message: String) : IOException(message)
+    open class RefusDrive(message: String) : IOException(message)
+
+    /**
+     * Drive refuse le jeton (401, ou 403 de raison [RAISONS_AUTORISATION]) : réessayer ne
+     * changera rien tant que quelqu'un ne rouvre pas l'écran d'autorisation.
+     */
+    class AutorisationRevoquee(message: String) : RefusDrive(message)
 
     /** Les raisons d'un 403 qui disent vraiment « ce jeton n'a pas les droits ». */
     private val RAISONS_AUTORISATION = setOf("insufficientPermissions", "authError")
@@ -143,7 +152,7 @@ object DriveCarnet {
                 val cause = (indisponible as? ExecutionException)?.cause ?: indisponible
                 return@withContext echecGoogle((cause as? ApiException)?.statusCode, cause.message)
             }
-            lireResultat(resultat)
+            lireResultat(contexte, resultat)
         }
 
     /** Relit ce que l'écran de consentement a rendu. `null` : refusé ou abandonné. */
@@ -151,7 +160,7 @@ object DriveCarnet {
         withContext(Dispatchers.IO) {
             val intention = donnees ?: return@withContext Autorisation.Echec("Autorisation refusée.")
             try {
-                lireResultat(Identity.getAuthorizationClient(contexte).getAuthorizationResultFromIntent(intention))
+                lireResultat(contexte, Identity.getAuthorizationClient(contexte).getAuthorizationResultFromIntent(intention))
             } catch (refus: ApiException) {
                 echecGoogle(refus.statusCode, refus.message)
             } catch (refus: Exception) {
@@ -163,11 +172,16 @@ object DriveCarnet {
      * L'accord ne porte pas l'identité du compte (`authorize()` autorise, il ne connecte
      * pas) : on la redemande au point `userinfo` avec le jeton obtenu.
      */
-    private fun lireResultat(resultat: AuthorizationResult): Autorisation {
+    private fun lireResultat(contexte: Context, resultat: AuthorizationResult): Autorisation {
         resultat.pendingIntent?.takeIf { resultat.hasResolution() }?.let { return Autorisation.AEcran(it) }
         val jeton = resultat.accessToken ?: return Autorisation.Echec("Google n'a pas rendu de jeton d'accès.")
         val compte = try {
             lireEmail(String(appel(URL_USERINFO, "GET", jeton), StandardCharsets.UTF_8))
+        } catch (refuse: AutorisationRevoquee) {
+            // Accès retiré depuis le compte Google, jeton encore en cache : sans l'oublier,
+            // `authorize()` le rendrait à nouveau et l'écran de consentement ne reviendrait pas.
+            oublierJeton(contexte, jeton)
+            return Autorisation.Echec(MOTIF_ACCES_RETIRE)
         } catch (indisponible: IOException) {
             return if (estPanneReseau(indisponible)) {
                 Autorisation.Echec(MOTIF_RESEAU, reseau = true)
@@ -196,6 +210,27 @@ object DriveCarnet {
         resultat.accessToken ?: throw IOException("Google n'a pas rendu de jeton d'accès.")
     }
 
+    /**
+     * Exécute [bloc] avec le jeton du compte. Si Drive le refuse ([AutorisationRevoquee]), le
+     * jeton est d'abord retiré du cache de Play Services : sinon `authorize()` rendrait le
+     * même jeton mort jusqu'à son expiration (jusqu'à une heure), sans jamais reproposer
+     * l'écran de consentement.
+     */
+    private suspend fun <T> avecJeton(contexte: Context, bloc: (String) -> T): T {
+        val jeton = jeton(contexte)
+        return try {
+            bloc(jeton)
+        } catch (refuse: AutorisationRevoquee) {
+            oublierJeton(contexte, jeton)
+            throw refuse
+        }
+    }
+
+    /** Retire [jeton] du cache de Play Services (appel bloquant : thread d'E/S seulement). */
+    private fun oublierJeton(contexte: Context, jeton: String) {
+        runCatching { GoogleAuthUtil.clearToken(contexte, jeton) }
+    }
+
     // ── Dossiers ────────────────────────────────────────────────────────────────
 
     /**
@@ -211,25 +246,28 @@ object DriveCarnet {
      */
     suspend fun dossier(contexte: Context, nom: String = NOM_DOSSIER, parent: String? = null): FichierDrive =
         withContext(Dispatchers.IO) {
-            val jeton = jeton(contexte)
-            val champs = URLEncoder.encode("files(id,name,createdTime)", "UTF-8")
-            val requete = URLEncoder.encode(requeteDossier(nom, parent), "UTF-8")
-            val reponse = String(
-                appel("$URL_FICHIERS?q=$requete&fields=$champs&orderBy=createdTime&pageSize=10", "GET", jeton),
-                StandardCharsets.UTF_8,
-            )
-            lireListe(reponse).firstOrNull() ?: run {
-                val cree = appel(
-                    url = "$URL_FICHIERS?fields=id,name",
-                    methode = "POST",
-                    jeton = jeton,
-                    typeContenu = "application/json; charset=UTF-8",
-                    corps = metadonnees(nom, parent, TYPE_DOSSIER).toByteArray(StandardCharsets.UTF_8),
-                )
-                lireFichier(String(cree, StandardCharsets.UTF_8))
-                    ?: throw IOException("Drive n'a pas rendu le dossier créé.")
-            }
+            avecJeton(contexte) { jeton -> chercherOuCreerDossier(jeton, nom, parent) }
         }
+
+    private fun chercherOuCreerDossier(jeton: String, nom: String, parent: String?): FichierDrive {
+        val champs = URLEncoder.encode("files(id,name,createdTime)", "UTF-8")
+        val requete = URLEncoder.encode(requeteDossier(nom, parent), "UTF-8")
+        val reponse = String(
+            appel("$URL_FICHIERS?q=$requete&fields=$champs&orderBy=createdTime&pageSize=10", "GET", jeton),
+            StandardCharsets.UTF_8,
+        )
+        return lireListe(reponse).firstOrNull() ?: run {
+            val cree = appel(
+                url = "$URL_FICHIERS?fields=id,name",
+                methode = "POST",
+                jeton = jeton,
+                typeContenu = "application/json; charset=UTF-8",
+                corps = metadonnees(nom, parent, TYPE_DOSSIER).toByteArray(StandardCharsets.UTF_8),
+            )
+            lireFichier(String(cree, StandardCharsets.UTF_8))
+                ?: throw IOException("Drive n'a pas rendu le dossier créé.")
+        }
+    }
 
     // ── Fichiers ────────────────────────────────────────────────────────────────
 
@@ -238,7 +276,10 @@ object DriveCarnet {
      * ignorait `nextPageToken` perdait silencieusement tout ce qui dépassait la première page.
      */
     suspend fun lister(contexte: Context, dossierId: String): List<FichierDrive> = withContext(Dispatchers.IO) {
-        val jeton = jeton(contexte)
+        avecJeton(contexte) { jeton -> listerAvec(jeton, dossierId) }
+    }
+
+    private fun listerAvec(jeton: String, dossierId: String): List<FichierDrive> {
         val champs = URLEncoder.encode("nextPageToken,files(id,name,modifiedTime,size)", "UTF-8")
         val requete = URLEncoder.encode("'${echapper(dossierId)}' in parents and trashed = false", "UTF-8")
         val tous = mutableListOf<FichierDrive>()
@@ -257,7 +298,7 @@ object DriveCarnet {
             jetonPage = lireJetonPage(reponse)
             pages++
         } while (jetonPage != null && pages < PAGES_MAX)
-        tous
+        return tous
     }
 
     /**
@@ -272,7 +313,6 @@ object DriveCarnet {
         typeMime: String = "application/json",
         existants: List<FichierDrive>? = null,
     ): FichierDrive = withContext(Dispatchers.IO) {
-        val jeton = jeton(contexte)
         val deja = (existants ?: lister(contexte, dossierId)).firstOrNull { it.nom == nom }
         val (frontiere, corps) = construireCorpsMultipart(
             nomFichier = nom,
@@ -285,13 +325,15 @@ object DriveCarnet {
         } else {
             "$URL_UPLOAD/${deja.id}?uploadType=multipart&fields=id,name"
         }
-        val reponse = appel(
-            url = url,
-            methode = if (deja == null) "POST" else "PATCH",
-            jeton = jeton,
-            typeContenu = "multipart/related; boundary=$frontiere",
-            corps = corps,
-        )
+        val reponse = avecJeton(contexte) { jeton ->
+            appel(
+                url = url,
+                methode = if (deja == null) "POST" else "PATCH",
+                jeton = jeton,
+                typeContenu = "multipart/related; boundary=$frontiere",
+                corps = corps,
+            )
+        }
         lireFichier(String(reponse, StandardCharsets.UTF_8)) ?: FichierDrive(deja?.id.orEmpty(), nom)
     }
 
@@ -301,48 +343,74 @@ object DriveCarnet {
         id: String,
         progression: (recus: Long, total: Long) -> Unit = { _, _ -> },
     ): ByteArray = withContext(Dispatchers.IO) {
-        val connexion = (URL("$URL_FICHIERS/$id?alt=media").openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = DELAI_CONNEXION_MS
-            readTimeout = DELAI_LECTURE_MS
-            setRequestProperty("Authorization", "Bearer ${jeton(contexte)}")
-        }
-        try {
-            val code = connexion.responseCode
-            if (code !in 200..299) throw exceptionPour(code, "GET", lireCorpsErreur(connexion))
-            lireAvecProgression(connexion.inputStream, connexion.contentLengthLong.coerceAtLeast(0L), progression)
-        } finally {
-            connexion.disconnect()
+        avecJeton(contexte) { jeton ->
+            val connexion = (URL("$URL_FICHIERS/$id?alt=media").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = DELAI_CONNEXION_MS
+                readTimeout = DELAI_LECTURE_MS
+                setRequestProperty("Authorization", "Bearer $jeton")
+            }
+            try {
+                val code = connexion.responseCode
+                if (code !in 200..299) throw exceptionPour(code, "GET", lireCorpsErreur(connexion))
+                lireAvecProgression(connexion.inputStream, connexion.contentLengthLong.coerceAtLeast(0L), progression)
+            } finally {
+                connexion.disconnect()
+            }
         }
     }
 
     /** Efface définitivement un fichier. */
     suspend fun supprimer(contexte: Context, id: String): Unit = withContext(Dispatchers.IO) {
-        appel("$URL_FICHIERS/$id", "DELETE", jeton(contexte))
+        avecJeton(contexte) { jeton -> appel("$URL_FICHIERS/$id", "DELETE", jeton) }
     }
 
     // ── Parts pures, testables sans réseau ni compte ────────────────────────────
 
-    const val MOTIF_RESEAU = "Pas de réseau : le Drive sera vérifié au prochain lancement."
+    /** Hors ligne pendant un branchement : rien n'est mémorisé, il faudra réessayer. */
+    const val MOTIF_RESEAU = "Pas de réseau : réessaie une fois connecté."
 
-    /** Une panne de réseau (pas de réponse du tout), par opposition à un refus de Google. */
+    /** Hors ligne au lancement, téléphone déjà branché : le branchement mémorisé tient. */
+    const val MOTIF_HORS_LIGNE = "Hors ligne : le Drive sera vérifié au prochain lancement."
+
+    const val MOTIF_ACCES_RETIRE = "Google a retiré l'accès au Drive. Reconnecte le compte."
+
+    /**
+     * Une panne de réseau (rien n'a répondu), par opposition à un refus ([RefusDrive]). On
+     * remonte la chaîne des causes : `jeton()` enveloppe l'échec de Play Services, et une
+     * coupure en cours de requête arrive en `SocketException` (« connection reset »,
+     * « Software caused connection abort », `NoRouteToHostException`) ou en `SSLException`.
+     */
     internal fun estPanneReseau(erreur: Throwable): Boolean =
-        erreur is UnknownHostException || erreur is SocketTimeoutException || erreur is ConnectException
+        erreur !is RefusDrive && generateSequence(erreur) { it.cause }.take(10).any {
+            it is UnknownHostException ||
+                it is SocketTimeoutException ||
+                it is SocketException ||
+                it is SSLException ||
+                (it as? ApiException)?.statusCode == CommonStatusCodes.NETWORK_ERROR
+        }
 
     /**
      * L'échec d'une demande d'autorisation, dit en français. Les codes de Play Services
      * qu'on rencontre réellement au premier branchement ont un message qui dit quoi faire ;
      * les autres gardent leur code, pour pouvoir le chercher.
      */
-    internal fun echecGoogle(code: Int?, message: String?): Autorisation.Echec = when (code) {
-        CommonStatusCodes.NETWORK_ERROR -> Autorisation.Echec(MOTIF_RESEAU, reseau = true)
-        CommonStatusCodes.DEVELOPER_ERROR -> Autorisation.Echec(
-            "Google ne reconnaît pas l'app : le nom de package ou l'empreinte SHA-1 du client " +
-                "OAuth Android ne correspond pas (docs/google-cloud.md, étape 4).",
-        )
-        CommonStatusCodes.CANCELED -> Autorisation.Echec("Autorisation annulée.")
-        null -> Autorisation.Echec(message?.takeIf { it.isNotBlank() } ?: "Google n'a pas répondu à la demande d'autorisation.")
-        else -> Autorisation.Echec("Google a refusé la demande d'autorisation (code $code).")
+    internal fun echecGoogle(code: Int?, message: String?): Autorisation.Echec {
+        val texte = message?.trim()?.takeIf { it.isNotBlank() }
+        return when {
+            code == CommonStatusCodes.NETWORK_ERROR -> Autorisation.Echec(MOTIF_RESEAU, reseau = true)
+            // Google rend `UNREGISTERED_ON_API_CONSOLE` avec le code 10, mais aussi avec le 8
+            // (« [8] Unknown error [status=UNREGISTERED_ON_API_CONSOLE] ») : le texte décide.
+            code == CommonStatusCodes.DEVELOPER_ERROR || texte?.contains("UNREGISTERED_ON_API_CONSOLE") == true ->
+                Autorisation.Echec(
+                    "Google ne reconnaît pas l'app : le nom de package ou l'empreinte SHA-1 du client " +
+                        "OAuth Android ne correspond pas (docs/google-cloud.md, étape 4).",
+                )
+            code == CommonStatusCodes.CANCELED -> Autorisation.Echec("Autorisation annulée.")
+            code == null -> Autorisation.Echec(texte ?: "Google n'a pas répondu à la demande d'autorisation.")
+            // Le texte de Google est gardé : c'est lui qu'on cherche quand le code ne suffit pas.
+            else -> Autorisation.Echec("Google a refusé la demande d'autorisation (code $code" + (texte?.let { " : $it" } ?: "") + ").")
+        }
     }
 
     /** Ce que Drive dit de son refus : `error.errors[0].reason` et `error.message`. */
@@ -362,22 +430,22 @@ object DriveCarnet {
 
     /**
      * L'exception qui correspond à une réponse hors 2xx. Seul un vrai refus du jeton devient
-     * [AutorisationRevoquee] (définitif, il faut reconnecter) ; le reste est une [IOException]
+     * [AutorisationRevoquee] (définitif, il faut reconnecter) ; le reste est un [RefusDrive]
      * qui porte le message de Google, pour que l'écran dise la vraie cause.
      */
-    internal fun exceptionPour(code: Int, methode: String, corps: String?): IOException {
+    internal fun exceptionPour(code: Int, methode: String, corps: String?): RefusDrive {
         val erreur = lireErreurDrive(corps)
         val raison = erreur?.raison
         if (code == 401 || (code == 403 && raison in RAISONS_AUTORISATION)) {
             return AutorisationRevoquee("Drive a refusé l'appel $methode : HTTP $code (autorisation retirée).")
         }
         if (raison == "accessNotConfigured" || raison == "SERVICE_DISABLED") {
-            return IOException(
-                "l'API Google Drive n'est pas activée dans le projet Google Cloud (docs/google-cloud.md, étape 2).",
+            return RefusDrive(
+                "L'API Google Drive n'est pas activée dans le projet Google Cloud (docs/google-cloud.md, étape 2).",
             )
         }
         val detail = listOfNotNull(erreur?.message, raison?.let { "($it)" }).joinToString(" ")
-        return IOException("Drive a refusé l'appel $methode : HTTP $code" + if (detail.isBlank()) "." else " — $detail")
+        return RefusDrive("Drive a refusé l'appel $methode : HTTP $code" + if (detail.isBlank()) "." else " — $detail")
     }
 
     /**

@@ -137,7 +137,7 @@ class MiseAJourTest {
     }
 
     /**
-     * Patch propre au Carnet (à reporter dans la Library) : un écran recréé pendant la
+     * Patch relevé dans le Carnet, reporté dans la Library le 2026-10-26 : un écran recréé pendant la
      * requête annule l'interrogation. Avant, l'annulation était avalée et la réponse vide
      * retenue pour tout le processus ; maintenant l'appel suivant interroge à nouveau.
      */

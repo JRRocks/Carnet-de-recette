@@ -77,7 +77,7 @@ class CapturesAccueilTest {
         capturer("02-accueil-connecte")
 
         etat = EtatDrive.Pret("foyer@example.org", horsLigne = true)
-        compose.onNodeWithText("Pas de réseau", substring = true).assertExists()
+        compose.onNodeWithText("Hors ligne", substring = true).assertExists()
         capturer("03-accueil-hors-ligne")
 
         etat = EtatDrive.Erreur("Le Drive a refusé : l'API Google Drive n'est pas activée dans le projet Google Cloud (docs/google-cloud.md, étape 2).")

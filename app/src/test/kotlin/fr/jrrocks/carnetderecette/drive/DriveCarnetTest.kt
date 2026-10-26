@@ -2,9 +2,15 @@ package fr.jrrocks.carnetderecette.drive
 
 import com.google.android.gms.common.api.CommonStatusCodes
 import fr.jrrocks.carnetderecette.drive.DriveCarnet.FichierDrive
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.Status
 import java.io.IOException
+import java.net.NoRouteToHostException
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.util.concurrent.ExecutionException
+import javax.net.ssl.SSLException
 import java.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -198,7 +204,8 @@ class DriveCarnetTest {
         val exception = DriveCarnet.exceptionPour(403, "GET", erreur(403, "accessNotConfigured", "Google Drive API has not been used"))
 
         assertFalse(exception is DriveCarnet.AutorisationRevoquee)
-        assertTrue(exception.message!!.contains("n'est pas activée"))
+        assertTrue("un refus, pas une panne de réseau", exception is DriveCarnet.RefusDrive)
+        assertTrue(exception.message!!.startsWith("L'API Google Drive n'est pas activée"))
         assertTrue(exception.message!!.contains("étape 2"))
     }
 
@@ -226,7 +233,27 @@ class DriveCarnetTest {
     fun `une panne de reseau se distingue d un refus`() {
         assertTrue(DriveCarnet.estPanneReseau(UnknownHostException("www.googleapis.com")))
         assertTrue(DriveCarnet.estPanneReseau(SocketTimeoutException()))
-        assertFalse(DriveCarnet.estPanneReseau(IOException("Drive a refusé l'appel GET : HTTP 500.")))
+        assertFalse(DriveCarnet.estPanneReseau(DriveCarnet.exceptionPour(500, "GET", null)))
+        assertFalse(DriveCarnet.estPanneReseau(IOException("Drive n'a pas rendu le dossier créé.")))
+    }
+
+    /** Seconde relecture : une coupure en cours de requête passait encore pour un refus. */
+    @Test
+    fun `une coupure en cours de requete est une panne de reseau, meme enveloppee`() {
+        assertTrue(DriveCarnet.estPanneReseau(SocketException("Software caused connection abort")))
+        assertTrue(DriveCarnet.estPanneReseau(NoRouteToHostException()))
+        assertTrue(DriveCarnet.estPanneReseau(SSLException("Read error: Connection reset by peer")))
+        // `jeton()` enveloppe l'échec de Play Services, lui-même enveloppé par `Tasks.await`.
+        assertTrue(
+            DriveCarnet.estPanneReseau(
+                IOException("Autorisation Google indisponible.", ExecutionException(ApiException(Status(CommonStatusCodes.NETWORK_ERROR)))),
+            ),
+        )
+        assertFalse(
+            DriveCarnet.estPanneReseau(
+                IOException("Autorisation Google indisponible.", ExecutionException(ApiException(Status(CommonStatusCodes.DEVELOPER_ERROR)))),
+            ),
+        )
     }
 
     /** Relecture du lot 1 : hors ligne, l'écran affichait « ApiException: 7: » ou accusait Google. */
@@ -242,6 +269,20 @@ class DriveCarnetTest {
 
         assertNotEquals("4: ", DriveCarnet.echecGoogle(4, "4: ").motif)
         assertEquals("Délai dépassé", DriveCarnet.echecGoogle(null, "Délai dépassé").motif)
+    }
+
+    /**
+     * Seconde relecture : Google rend aussi `UNREGISTERED_ON_API_CONSOLE` avec le code 8. Le
+     * message utile ne doit pas se perdre, et un code inconnu garde le texte de Google.
+     */
+    @Test
+    fun `une app non reconnue se dit telle quel que soit le code, et le texte de Google est garde`() {
+        val nonReconnue = DriveCarnet.echecGoogle(8, "8: [8] Unknown error [status=UNREGISTERED_ON_API_CONSOLE]")
+        assertTrue(nonReconnue.motif.contains("SHA-1"))
+
+        val autre = DriveCarnet.echecGoogle(4, "4: SIGN_IN_REQUIRED")
+        assertTrue(autre.motif.contains("code 4"))
+        assertTrue(autre.motif.contains("SIGN_IN_REQUIRED"))
     }
 
     private fun indexOfSousTableau(tableau: ByteArray, motif: ByteArray): Int {

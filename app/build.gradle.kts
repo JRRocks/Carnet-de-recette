@@ -35,9 +35,13 @@ android {
             create("release") {
                 val proprietes = Properties().apply { load(FileInputStream(proprietesRelease)) }
                 storeFile = file("keystore-release/${proprietes.getProperty("storeFile")}")
-                storePassword = proprietes.getProperty("storePassword")
                 keyAlias = proprietes.getProperty("keyAlias")
-                keyPassword = proprietes.getProperty("keyPassword")
+                // La CI passe les mots de passe en variables d'environnement plutôt que dans le
+                // fichier : `Properties.load` traite `\` comme un échappement et retire les
+                // espaces de tête, ce qui corromprait un mot de passe généré (seconde relecture
+                // du lot 1). Le fichier reste le repli pour une compilation sur un ordinateur.
+                storePassword = System.getenv("SIGNATURE_STORE_PASSWORD") ?: proprietes.getProperty("storePassword")
+                keyPassword = System.getenv("SIGNATURE_KEY_PASSWORD") ?: proprietes.getProperty("keyPassword")
             }
         }
     }

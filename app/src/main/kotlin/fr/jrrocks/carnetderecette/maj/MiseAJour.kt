@@ -113,7 +113,8 @@ object MiseAJour {
     /**
      * Le cœur de [publicationDuLancement], sans réseau ni `PackageManager`, pour les tests.
      *
-     * **Patch** (Carnet de recette, à reporter dans la Library) : la version d'origine
+     * **Patch** (relevé dans le Carnet, reporté dans la Library le 2026-10-26, fiche
+     * `maj-auto-github`) : la version d'origine
      * enveloppait l'appel dans `runCatching`, qui attrape aussi l'**annulation**. Un écran
      * quitté ou recréé pendant la requête laissait alors `interrogee` à `true` et `retenue` à
      * `null` : plus aucune mise à jour proposée jusqu'à la mort du processus. Une annulation

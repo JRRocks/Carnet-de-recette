@@ -19,7 +19,8 @@
 Calcul de l'empreinte, là où se trouve la clé :
 
 ```bash
-keytool -list -v -keystore carnet-release.jks -alias carnet | grep SHA1
+keytool -list -v -keystore carnet-release.jks -alias carnet | grep SHA1              # Linux, macOS
+keytool -list -v -keystore carnet-release.jks -alias carnet | Select-String SHA1     # Windows PowerShell
 ```
 
 ### Pourquoi pas l'empreinte de la clé debug
@@ -45,7 +46,7 @@ l'app, et des projets séparés se révoquent séparément.
 
 **API et services** → **Bibliothèque** → chercher « Google Drive API » → **Activer**.
 
-Si cette étape manque, l'app le dit : « l'API Google Drive n'est pas activée dans le projet
+Si cette étape manque, l'app le dit : « L'API Google Drive n'est pas activée dans le projet
 Google Cloud ».
 
 ## Étape 3 : l'écran de consentement (Google Auth Platform)
@@ -87,7 +88,10 @@ Google Cloud ».
 
 | Ce que l'app affiche | Cause | Remède |
 |---|---|---|
-| « Google ne reconnaît pas l'app : le nom de package ou l'empreinte SHA-1… » (`DEVELOPER_ERROR`, ou `UNREGISTERED_ON_API_CONSOLE`) | Le client OAuth ne porte pas ce package ou cette empreinte, ou l'APK n'est pas signé de la clé release | Recalculer l'empreinte release et comparer (étape 4) ; installer un APK d'aperçu, pas un APK de debug |
-| « l'API Google Drive n'est pas activée dans le projet Google Cloud » | Étape 2 oubliée, ou activée depuis moins de quelques minutes | Étape 2, puis réessayer |
+| « Google ne reconnaît pas l'app : le nom de package ou l'empreinte SHA-1… » (`DEVELOPER_ERROR`, ou `UNREGISTERED_ON_API_CONSOLE` quel que soit son code) | Le client OAuth ne porte pas ce package ou cette empreinte, ou l'APK n'est pas signé de la clé release | Recalculer l'empreinte release et comparer (étape 4) ; installer un APK d'aperçu, pas un APK de debug |
+| « L'API Google Drive n'est pas activée dans le projet Google Cloud… » | Étape 2 oubliée, ou activée depuis moins de quelques minutes | Étape 2, puis réessayer |
+| « Google a refusé la demande d'autorisation (code N : …) » | Autre refus de Play Services ; le texte de Google suit le code | Revoir les étapes 2 à 4, puis chercher le code et le texte affichés |
+| « Google a retiré l'accès au Drive. Reconnecte le compte. » | L'accès a été retiré depuis le compte Google (Sécurité → applications tierces) | « Connecter Google Drive » : l'écran de consentement revient |
 | `access_denied` sur l'écran Google | App restée en test et compte non déclaré testeur | Étape 3.5 |
-| « Pas de réseau : le Drive sera vérifié au prochain lancement » | Le téléphone est hors ligne | Rien : le compte reste branché |
+| « Pas de réseau : réessaie une fois connecté. » | Hors ligne pendant un branchement | « Réessayer » une fois le réseau revenu |
+| « Hors ligne : le Drive sera vérifié au prochain lancement. » | Téléphone déjà branché, lancé sans réseau | Rien : le branchement mémorisé tient |
