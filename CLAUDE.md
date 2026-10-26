@@ -35,3 +35,43 @@ validées, architecture, déroulé de la semaine, ce qui est volontairement repo
    **Pas d'IA pendant la cuisson** : en cuisine, l'app est déterministe et marche hors
    ligne.
 7. **Français** pour la documentation, l'interface et les messages de commit.
+
+## Compiler et tester
+
+Un conteneur cloud n'a pas de SDK Android. Une fois par session :
+
+```bash
+./outils/sdk-android.sh
+./gradlew --max-workers=1 :core:test :app:testDebugUnitTest :app:assembleDebug
+```
+
+`--max-workers=1` au premier passage : Maven Central répond « 429 Too Many Requests » aux
+téléchargements en parallèle depuis le proxy des sessions cloud. Si un 429 apparaît quand
+même, relancer après une courte pause.
+
+**Voir un écran avant de l'installer** : les tests `app/src/test/.../capture/` rendent les
+écrans en PNG sous Robolectric, sans émulateur (méthode de Popote). Les images sortent dans
+`app/build/captures/` : les regarder avec `Read`, puis les montrer à l'utilisateur.
+
+## Après chaque changement de l'APK : aperçu
+
+1. Incrémenter `versionCode` et `versionName` dans `app/build.gradle.kts`.
+2. Commit et push sur la branche de travail. `.github/workflows/apercu.yml` lance les tests
+   et attache l'APK à la pré-version `apercu-<versionName>`.
+3. Vérifier que le run se termine avec succès (`mcp__github__actions_list` /
+   `actions_get`), puis donner le lien :
+   `https://github.com/JRRocks/Carnet-de-recette/releases/tag/apercu-<versionName>`.
+
+Une pré-version n'est jamais proposée en mise à jour par l'app : l'aperçu ne touche aucun
+téléphone tant que l'utilisateur ne l'installe pas lui-même.
+
+Sans les secrets de la clé release, `apercu.yml` lance les tests mais ne publie rien : la clé
+de debug est publique, son empreinte n'est pas déclarée à Google, et un APK de debug ne se
+connecterait pas au Drive (docs/google-cloud.md).
+
+## Publication : uniquement sur feu vert explicite
+
+L'APK publié par `.github/workflows/version.yml` est proposé à **tous** les téléphones au
+lancement suivant. Ne le lancer que si l'utilisateur dit explicitement qu'on peut publier
+**cette** version ; une autorisation ne vaut pas pour les suivantes. En cas de doute : ne pas
+publier, demander. Marche à suivre : [`docs/publication.md`](docs/publication.md).

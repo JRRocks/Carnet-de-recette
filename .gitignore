@@ -1,0 +1,16 @@
+# Gradle et Android Studio
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+
+# Clé de signature release : jamais versionnée (docs/publication.md).
+# La clé de debug, elle, l'est exprès : app/keystore/debug.keystore.
+app/keystore-release/*
+!app/keystore-release/keystore.properties.example
+*.jks
+*.keystore
+!app/keystore/debug.keystore

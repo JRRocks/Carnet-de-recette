@@ -1,0 +1,140 @@
+name: Aperçu
+
+# Un APK d'essai à chaque push qui touche l'app sur une branche de travail, attaché à la
+# pré-version `apercu-<versionName>` de ce dépôt, pour l'installer sur le téléphone avant de
+# publier quoi que ce soit (docs/publication.md).
+#
+# Une pré-version n'est jamais rendue par `/releases/latest` : l'app installée ne la propose
+# donc pas en mise à jour (`app/src/main/kotlin/.../maj/MiseAJour.kt`).
+#
+# Signature : toujours la clé release. La clé de debug est publique (versionnée dans ce dépôt
+# public) : son empreinte n'est pas déclarée à Google, un APK de debug ne se connecterait donc
+# pas au Drive (docs/google-cloud.md). Sans les secrets de la clé release, le workflow lance
+# les tests puis s'arrête sans rien publier (docs/publication.md, mise en place).
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "app/**"
+      - "core/**"
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/apercu.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apercu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Lire la version dans app/build.gradle.kts
+        id: version
+        run: |
+          set -euo pipefail
+          fichier=app/build.gradle.kts
+          code=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$fichier")
+          nom=$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$fichier")
+          if [ -z "$code" ] || [ -z "$nom" ]; then
+            echo "::error::versionCode/versionName introuvables dans $fichier"
+            exit 1
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "nom=$nom" >> "$GITHUB_OUTPUT"
+
+      - name: Restaurer la clé de signature release
+        id: cle
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SIGNATURE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.SIGNATURE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNATURE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIGNATURE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::warning::Pas de clé release (docs/publication.md, mise en place) : tests seulement, aucun APK publié."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p app/keystore-release
+          echo "$KEYSTORE_BASE64" | base64 -d > app/keystore-release/carnet-release.jks
+          # `printf '%s\n'` et non `echo` : un mot de passe commençant par « -n » ou contenant
+          # une barre oblique inverse se ferait réécrire par `echo`.
+          {
+            printf '%s\n' "storeFile=carnet-release.jks"
+            printf '%s\n' "storePassword=$STORE_PASSWORD"
+            printf '%s\n' "keyAlias=$KEY_ALIAS"
+            printf '%s\n' "keyPassword=$KEY_PASSWORD"
+          } > app/keystore-release/keystore.properties
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Lancer les tests unitaires
+        run: ./gradlew :core:test :app:testDebugUnitTest --stacktrace
+
+      - name: Compiler l'APK release
+        id: apk
+        if: steps.cle.outputs.release == 'true'
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleRelease --stacktrace
+          sortie=app/build/outputs/apk/release
+          if [ -f "$sortie/Carnet-de-recette-unsigned.apk" ]; then
+            echo "::error::APK non signé produit : la clé de release n'a pas été prise en compte."
+            exit 1
+          fi
+          cible="$sortie/carnet-de-recette-${{ steps.version.outputs.nom }}-${{ steps.version.outputs.code }}.apk"
+          mv "$sortie/Carnet-de-recette.apk" "$cible"
+          echo "chemin=$cible" >> "$GITHUB_OUTPUT"
+
+      - name: Publier la pré-version d'aperçu
+        if: steps.cle.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          balise="apercu-${{ steps.version.outputs.nom }}"
+          apk="${{ steps.apk.outputs.chemin }}"
+          if gh release view "$balise" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$balise" "$apk" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$balise" "$apk" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --title "Aperçu ${{ steps.version.outputs.nom }}" \
+              --notes "APK d'essai, version ${{ steps.version.outputs.nom }} (code ${{ steps.version.outputs.code }}). Pré-version : jamais proposée en mise à jour par l'app."
+          fi
+          # Une erreur transitoire de l'API GitHub peut laisser la version en brouillon (vécu sur
+          # Popote) : lien mort derrière un run vert. On force la publication, en pré-version
+          # pour qu'elle ne devienne jamais la « latest » que l'app propose.
+          gh release edit "$balise" --draft=false --prerelease --repo "$GITHUB_REPOSITORY"
+          echo "Lien : https://github.com/$GITHUB_REPOSITORY/releases/download/$balise/$(basename "$apk")" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publier les captures d'écran
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures
+          path: app/build/captures
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Effacer la clé de signature
+        if: always()
+        run: rm -rf app/keystore-release/*.jks app/keystore-release/keystore.properties

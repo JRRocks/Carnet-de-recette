@@ -1,7 +1,8 @@
 # Cadrage du Carnet de recettes
 
-> État : **cadrage validé le 2026-10-23**, révisé le même jour après le test d'accès Cowork
-> (§ 2, lignes marquées « à valider »). Aucune ligne de code encore écrite.
+> État : **cadrage validé le 2026-10-23**, révisé le même jour après le test d'accès Cowork,
+> révision validée le 2026-10-25. **Lot 1 codé** (squelette, connexion Drive, publication),
+> en attente de la configuration Google Cloud et d'un essai sur téléphone.
 > Ce document fait foi pour les décisions. Une décision qui change se corrige ici, avec sa date.
 
 ## 1. En une phrase
@@ -19,7 +20,8 @@ suit ses tâches sur son téléphone, à l'écran et à l'oreille.
 | Téléphones | **Un compte Google partagé**, **chacun son téléphone** | 2026-10-23 |
 | Stockage | Google Drive, dossier `Maison/Carnet de recettes/` | 2026-10-23 |
 | Source des recettes | **Pages publiques** de hellofresh.fr, lues comme le ferait un navigateur : le menu de la semaine et la page de chaque recette (§ 5). **Jamais de jeton extrait d'une page, jamais d'interface interne du site.** PDF et photo de fiche = **mode dégradé** seulement | 2026-10-23, révisé |
-| Qui récupère | **L'app, au moment du scan** (vendredi). Cowork n'accède plus au site | 2026-10-23, **à valider** |
+| Qui récupère | **L'app, au moment du scan** (vendredi). Cowork n'accède plus au site | 2026-10-23, validé le 2026-10-25 |
+| Nom | App « **Carnet de recette** », identifiant Android `fr.jrrocks.carnetderecette` (définitif dès la première version distribuée) | 2026-10-25 |
 | Saisie | Scan de l'**étiquette de la box** (n° de recette, nombre de personnes), **sans regex** | 2026-10-23 |
 | Intelligence | **Claude Cowork le vendredi soir**, à partir des données déposées sur Drive. Pas de LLM dans l'app | 2026-10-23 |
 | Audio | Lecture **par segments** courts que l'on valide, active ou planifie, jamais toute la recette d'un trait | 2026-10-23 |
@@ -314,23 +316,22 @@ SourceRecette
 
 - [x] **Cowork joint-il hellofresh.fr ?** Pages publiques : oui. Jeton et interface interne :
       bloqués, et abandonnés (§ 2).
-- [ ] **Semaine du menu** : vérifier que le numéro de l'étiquette se lit dans le menu de la
-      semaine de livraison (premier vendredi réel).
-- [ ] La console Google accepte-t-elle deux SHA-1 (debug et release) sur un même client
-      Android, ou faut-il deux clients ? (La fiche Library dit « un client, deux
-      empreintes ».)
+- [x] **Semaine du menu** : le numéro de l'étiquette se lit dans le menu de la semaine de
+      livraison (box 207 reçue en semaine 43, confirmée le 2026-10-25).
+- [x] ~~Deux SHA-1 (debug et release) sur un même client ?~~ Sans objet (2026-10-26) : seule
+      l'empreinte release est déclarée, la clé debug étant publique (google-cloud.md).
 - [ ] Le sélecteur de fichiers Android voit-il bien Google Drive sur les deux téléphones ?
 - [ ] Cowork accepte-t-il de produire les tâches à partir de `recettes-…json` déposé par
       l'app ? (Test du lot 3.)
-- [ ] La compilation Android dans les sessions cloud demande que l'environnement installe le
-      SDK Android (comme pour Popote).
+- [x] Compilation Android dans les sessions cloud : `./outils/sdk-android.sh` installe le
+      SDK et le pot de Robolectric (CLAUDE.md, « Compiler et tester »).
 
 ## 13. Lots de réalisation
 
 | Lot | Contenu | Validation |
 |---|---|---|
 | 0 | Ce cadrage | ✅ 2026-10-23 |
-| 1 | Squelette Android (Kotlin, Compose, minSdk 26), clé debug versionnée, CI de publication (`maj-auto-github`), connexion Drive `drive.file` et création du dossier | Configuration Google Cloud faite ensemble ([guide](google-cloud.md)) |
+| 1 | Squelette Android (Kotlin, Compose, minSdk 26), clé debug versionnée, CI d'aperçu et de publication (`maj-auto-github`), connexion Drive `drive.file` et création du dossier | 🟡 Codé le 2026-10-25, relu (relecture adversariale, 9 défauts corrigés) le 2026-10-26. Reste, dans l'ordre : clé release et secrets ([publication](publication.md)), configuration Google Cloud ([guide](google-cloud.md)), essai sur téléphone |
 | 2 | Vendredi dans l'app : sonde, menu de la semaine, scan des étiquettes (`scan-multimode` adapté), lecture des pages recettes, dépôt sur Drive | Un vrai vendredi |
 | 3 | Skill Cowork du vendredi soir (sans accès web) : confirmation, tâches, hachoir, segments audio, fichier de semaine | Un vrai vendredi soir |
 | 4 | Import du samedi (sélecteur), catalogue local, images en cache, bandeau mode dégradé | — |

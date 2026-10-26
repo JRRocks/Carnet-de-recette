@@ -1,0 +1,143 @@
+name: Version
+
+# Publie une version : l'APK release signé, attaché à la version `v<versionName>` de ce
+# dépôt, que l'app interroge à chaque lancement (`maj/MiseAJour.kt`, `/releases/latest`).
+#
+# Différence avec Popote (moteur Library `maj-auto-github`) : le code est déjà public, donc
+# pas de second dépôt « versions » ni de jeton personnel. `GITHUB_TOKEN` suffit.
+#
+# **Uniquement sur feu vert explicite de l'utilisateur** (CLAUDE.md) : l'APK publié ici est
+# proposé à tous les téléphones au lancement suivant. Les essais passent par `apercu.yml`.
+#
+# Le nom du fichier porte le `versionCode` — `carnet-de-recette-<nom>-<code>.apk` — seul
+# entier que l'app puisse comparer au sien. Il est fabriqué ici depuis `app/build.gradle.kts`.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Lire la version dans app/build.gradle.kts
+        id: version
+        run: |
+          set -euo pipefail
+          fichier=app/build.gradle.kts
+          code=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$fichier")
+          nom=$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$fichier")
+          if [ -z "$code" ] || [ -z "$nom" ]; then
+            echo "::error::versionCode/versionName introuvables dans $fichier"
+            exit 1
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "nom=$nom" >> "$GITHUB_OUTPUT"
+          echo "balise=v$nom" >> "$GITHUB_OUTPUT"
+
+      - name: Vérifier que la balise poussée correspond à la version compilée
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          attendue="${{ steps.version.outputs.balise }}"
+          poussee="${GITHUB_REF#refs/tags/}"
+          if [ "$poussee" != "$attendue" ]; then
+            echo "::error::La balise poussée ($poussee) ne correspond pas à la version du code ($attendue)."
+            exit 1
+          fi
+
+      - name: Restaurer la clé de signature release
+        # Sans elle, `assembleRelease` produit un APK non signé, qui ne pourrait jamais
+        # remplacer une version installée : on échoue plutôt que de publier ça.
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SIGNATURE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.SIGNATURE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNATURE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIGNATURE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Secret SIGNATURE_KEYSTORE_BASE64 absent : cf. docs/publication.md."
+            exit 1
+          fi
+          mkdir -p app/keystore-release
+          echo "$KEYSTORE_BASE64" | base64 -d > app/keystore-release/carnet-release.jks
+          {
+            printf '%s\n' "storeFile=carnet-release.jks"
+            printf '%s\n' "storePassword=$STORE_PASSWORD"
+            printf '%s\n' "keyAlias=$KEY_ALIAS"
+            printf '%s\n' "keyPassword=$KEY_PASSWORD"
+          } > app/keystore-release/keystore.properties
+
+      - name: Lancer les tests unitaires
+        run: ./gradlew :core:test :app:testDebugUnitTest --stacktrace
+
+      - name: Compiler l'APK release
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Nommer l'APK avec son versionCode
+        id: apk
+        run: |
+          set -euo pipefail
+          sortie=app/build/outputs/apk/release
+          if [ -f "$sortie/Carnet-de-recette-unsigned.apk" ]; then
+            echo "::error::APK non signé produit : la clé de release n'a pas été prise en compte."
+            exit 1
+          fi
+          cible="$sortie/carnet-de-recette-${{ steps.version.outputs.nom }}-${{ steps.version.outputs.code }}.apk"
+          mv "$sortie/Carnet-de-recette.apk" "$cible"
+          echo "chemin=$cible" >> "$GITHUB_OUTPUT"
+
+      - name: Poser la balise (lancement manuel)
+        # Le push direct d'une balise depuis une session cloud Claude est bloqué (HTTP 403) :
+        # c'est le workflow qui la pose, avec le jeton de l'Action.
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          balise="${{ steps.version.outputs.balise }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$balise" >/dev/null 2>&1; then
+            echo "Balise $balise déjà posée, on la réutilise."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$balise" -m "Version ${{ steps.version.outputs.nom }}"
+          git push origin "$balise"
+
+      - name: Publier la version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          balise="${{ steps.version.outputs.balise }}"
+          apk="${{ steps.apk.outputs.chemin }}"
+          if gh release view "$balise" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$balise" "$apk" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$balise" "$apk" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Version ${{ steps.version.outputs.nom }}" \
+              --notes "Carnet de recette, version ${{ steps.version.outputs.nom }} (code ${{ steps.version.outputs.code }})."
+          fi
+          # Une erreur transitoire de l'API GitHub peut laisser la version en brouillon,
+          # invisible pour `/releases/latest` (vécu sur Popote) : on force la publication.
+          gh release edit "$balise" --draft=false --prerelease=false --latest --repo "$GITHUB_REPOSITORY"
+
+      - name: Effacer la clé de signature
+        if: always()
+        run: rm -rf app/keystore-release/*.jks app/keystore-release/keystore.properties
