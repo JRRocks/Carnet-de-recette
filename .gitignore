@@ -14,3 +14,6 @@ app/keystore-release/*
 *.jks
 *.keystore
 !app/keystore/debug.keystore
+
+# Copies de travail des agents (git worktree), jamais versionnées.
+.claude/worktrees/

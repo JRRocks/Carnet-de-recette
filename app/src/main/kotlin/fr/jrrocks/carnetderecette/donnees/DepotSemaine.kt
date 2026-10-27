@@ -63,6 +63,8 @@ data class EtatSemaine(
     val accesRompu: String? = null,
     /** Les numéros dont la page est en cours de lecture. */
     val enLecture: Set<Int> = emptySet(),
+    /** Augmente à chaque image téléchargée : les écrans se redessinent pour l'afficher. */
+    val versionImages: Int = 0,
 ) {
     val boxes: List<BoxScannee> get() = fichier.boxes
     fun recette(numero: Int): Recette? = fichier.recette(fichier.box(numero)?.recetteId)
