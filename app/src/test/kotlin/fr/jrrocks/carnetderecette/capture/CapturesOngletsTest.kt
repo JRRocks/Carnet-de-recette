@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.Density
+import fr.jrrocks.carnetderecette.donnees.EcritureImpossible
 import fr.jrrocks.carnetderecette.drive.DriveCarnet
 import fr.jrrocks.carnetderecette.ui.ActionsCarnet
 import fr.jrrocks.carnetderecette.ui.CarnetApp
@@ -54,7 +55,7 @@ class CapturesOngletsTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
     private var etat by mutableStateOf(
-        EtatCarnet(EtatDrive.NonConnecte, EtatMiseAJour.Aucune, "0.2", LocalDate.of(2026, 10, 26)),
+        EtatCarnet(EtatDrive.NonConnecte, EtatMiseAJour.Aucune, "0.2", LocalDate.of(2026, 10, 30)),
     )
     private var onglet by mutableStateOf(Onglet.SEMAINE)
     private var sombre by mutableStateOf(false)
@@ -136,6 +137,11 @@ class CapturesOngletsTest {
         etat = etat.copy(semaine = SemaineFactice.etat().copy(accesRompu = "La page de « Plat factice » ne donne plus les étapes."))
         compose.onNodeWithText("Photographier la fiche", useUnmergedTree = true).assertExists()
         capturer("05c-semaine-acces-rompu")
+
+        // Le téléphone est plein : le dépôt ne plante pas, la Semaine le dit.
+        etat = etat.copy(semaine = SemaineFactice.etat().copy(ecritureImpossible = EcritureImpossible.MOTIF_ECRITURE))
+        compose.onNodeWithText(EcritureImpossible.MOTIF_ECRITURE, useUnmergedTree = true).assertExists()
+        capturer("05d-semaine-telephone-plein")
         etat = etat.copy(semaine = null)
 
         // « Plus tard » : plus rien sur la Semaine.

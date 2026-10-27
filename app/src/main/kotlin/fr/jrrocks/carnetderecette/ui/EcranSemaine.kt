@@ -41,8 +41,9 @@ private val SOUS_LE_BOUTON = 96.dp
  * pas faite : tout reste sur le téléphone) ; le vendredi, on scanne les box ; les temps
  * suivants sont annoncés, pas encore dans l'app.
  *
- * En tête, au plus deux lignes d'état : la mise à jour, puis « hors ligne ». L'erreur du
- * Drive s'écrit sous son étape, près de son bouton « Réessayer ».
+ * En tête, les lignes d'état : l'accès HelloFresh rompu et le téléphone plein quand ils
+ * arrivent, puis la mise à jour et « hors ligne ». L'erreur du Drive s'écrit sous son étape,
+ * près de son bouton « Réessayer ».
  */
 @Composable
 fun EcranSemaine(etat: EtatCarnet, actions: ActionsCarnet, marges: PaddingValues, avecBouton: Boolean) {
@@ -69,6 +70,10 @@ fun EcranSemaine(etat: EtatCarnet, actions: ActionsCarnet, marges: PaddingValues
                     icone = R.drawable.ic_photo_camera,
                 )
             }
+        }
+        // Le téléphone est plein : ce qu'on scanne ne se garde plus tant qu'on n'a pas fait de place.
+        etat.semaine?.ecritureImpossible?.let { motif ->
+            LigneEtat(R.drawable.ic_error, motif, TonEtat.ERREUR, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
         }
         if (etat.maj.surLaSemaine) {
             LigneMiseAJour(etat.maj, actions, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))

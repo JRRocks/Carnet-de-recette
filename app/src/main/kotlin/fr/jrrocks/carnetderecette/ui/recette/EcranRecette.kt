@@ -22,6 +22,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -33,7 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import fr.jrrocks.carnetderecette.R
@@ -52,6 +56,7 @@ import fr.jrrocks.carnetderecette.ui.composants.EtatEtape
 import fr.jrrocks.carnetderecette.ui.composants.ImageLocale
 import fr.jrrocks.carnetderecette.ui.composants.LigneDeTemps
 import fr.jrrocks.carnetderecette.ui.composants.LigneEtat
+import fr.jrrocks.carnetderecette.ui.composants.LocalVersionImages
 import fr.jrrocks.carnetderecette.ui.composants.SorteBouton
 import fr.jrrocks.carnetderecette.ui.composants.TonEtat
 import fr.jrrocks.carnetderecette.ui.composants.imageDuSite
@@ -66,26 +71,31 @@ fun EcranRecette(destination: Destination.Recette, onRetour: () -> Unit, ouvrir:
     val etat by depot.etat(destination.semaine).collectAsState()
     val portee = rememberCoroutineScope()
     var echec by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    RecetteContenu(
-        numero = destination.numero,
-        box = etat.fichier.box(destination.numero),
-        recette = etat.recette(destination.numero),
-        entree = etat.menu?.entree(destination.numero),
-        enLecture = destination.numero in etat.enLecture,
-        echec = echec,
-        onRetour = onRetour,
-        relire = {
-            portee.launch {
-                echec = when (val r = depot.relireRecette(destination.semaine, destination.numero)) {
-                    is ResultatRecette.Lue -> null
-                    ResultatRecette.HorsMenu -> "La recette ${destination.numero} n'est pas dans le menu de la semaine."
-                    is ResultatRecette.HorsLigne -> r.motif
-                    is ResultatRecette.AccesRompu -> r.motif
+    // Les images qu'une coupure a laissées en route : redemandées à l'ouverture de la fiche.
+    LaunchedEffect(destination) { depot.completerImages(destination.semaine) }
+    // Chaque image arrivée redessine ses vignettes, sans remettre à zéro personnes ni défilement.
+    CompositionLocalProvider(LocalVersionImages provides etat.versionImages) {
+        RecetteContenu(
+            numero = destination.numero,
+            box = etat.fichier.box(destination.numero),
+            recette = etat.recette(destination.numero),
+            entree = etat.menu?.entree(destination.numero),
+            enLecture = destination.numero in etat.enLecture,
+            echec = echec,
+            onRetour = onRetour,
+            relire = {
+                portee.launch {
+                    echec = when (val r = depot.relireRecette(destination.semaine, destination.numero)) {
+                        is ResultatRecette.Lue -> null
+                        ResultatRecette.HorsMenu -> "La recette ${destination.numero} n'est pas dans le menu de la semaine."
+                        is ResultatRecette.HorsLigne -> r.motif
+                        is ResultatRecette.AccesRompu -> r.motif
+                    }
                 }
-            }
-        },
-        lireAVoixHaute = { ouvrir(Destination.Seance(destination.semaine, destination.numero)) },
-    )
+            },
+            lireAVoixHaute = { ouvrir(Destination.Seance(destination.semaine, destination.numero)) },
+        )
+    }
 }
 
 /** La fiche, sans état : de quoi la rendre en capture. */
@@ -237,10 +247,14 @@ private fun ChoixPersonnes(personnes: Int, possibles: List<Int>, choisir: (Int) 
         FilledTonalIconButton(onClick = { possibles.getOrNull(rang - 1)?.let(choisir) }, enabled = rang > 0, modifier = Modifier.size(48.dp)) {
             Icon(painterResource(R.drawable.ic_remove), contentDescription = "Une personne de moins")
         }
+        // Région dynamique : TalkBack annonce la nouvelle valeur après chaque appui sur moins ou plus.
         Text(
-            "$personnes\u00A0personnes",
+            if (personnes == 1) "1\u00A0personne" else "$personnes\u00A0personnes",
             style = MaterialTheme.typography.titleMedium.chiffres(),
-            modifier = Modifier.padding(horizontal = 12.dp).widthIn(min = 120.dp),
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .widthIn(min = 120.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
         )
         FilledTonalIconButton(onClick = { possibles.getOrNull(rang + 1)?.let(choisir) }, enabled = rang < possibles.lastIndex, modifier = Modifier.size(48.dp)) {
             Icon(painterResource(R.drawable.ic_add), contentDescription = "Une personne de plus")

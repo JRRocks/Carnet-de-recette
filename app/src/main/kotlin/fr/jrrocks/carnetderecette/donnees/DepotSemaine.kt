@@ -7,6 +7,7 @@ import fr.jrrocks.carnetderecette.core.semaine.BoxScannee
 import fr.jrrocks.carnetderecette.core.semaine.FichierRecettes
 import fr.jrrocks.carnetderecette.core.semaine.SemaineIso
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -15,7 +16,10 @@ import kotlinx.coroutines.flow.StateFlow
  * téléphone** (décision du 2026-10-27 : les outils marchent sans Drive) ; le dépôt sur le
  * Drive viendra une fois branché.
  *
- * Toutes les méthodes `suspend` font leurs entrées-sorties hors du fil principal.
+ * Toutes les méthodes `suspend` font leurs entrées-sorties hors du fil principal. Une
+ * écriture impossible (téléphone plein) ne fait jamais planter l'écran : elle pose
+ * [EtatSemaine.ecritureImpossible] et rend un échec ; seule [ajouterFiche] la lève, pour que
+ * l'écran de la fiche garde ses photos et propose de réessayer.
  */
 interface DepotSemaine {
 
@@ -24,7 +28,9 @@ interface DepotSemaine {
 
     /**
      * Le menu de [semaine] : depuis le téléphone s'il a déjà été lu, sinon depuis la page
-     * publique du site, contrôlée par la sonde (cadrage § 9). [forcer] relit le site.
+     * publique du site, contrôlée par la sonde (cadrage § 9). [forcer] relit le site : le
+     * menu, puis les pages de recette restées en échec. Quand tout se lit, l'accès rompu est
+     * levé (c'est le « Réessayer » de l'accès rompu).
      */
     suspend fun chargerMenu(semaine: SemaineIso, forcer: Boolean = false): ResultatMenu
 
@@ -41,7 +47,10 @@ interface DepotSemaine {
 
     suspend fun retirerBox(semaine: SemaineIso, numero: Int)
 
-    /** Range une fiche papier photographiée ; ses photos sont déjà dans [dossierFiches]. */
+    /**
+     * Range une fiche papier photographiée ; ses photos sont déjà dans [dossierPhotos].
+     * Lève [EcritureImpossible] si le fichier de la semaine n'a pas pu être écrit.
+     */
     suspend fun ajouterFiche(semaine: SemaineIso, fiche: FicheScannee)
 
     /** Où écrire les photos (étiquettes, fiches) de [semaine]. */
@@ -52,6 +61,21 @@ interface DepotSemaine {
      * téléchargé ; `null` sinon.
      */
     fun imageLocale(chemin: String): File?
+
+    /**
+     * Relance, en arrière-plan, le téléchargement des images qui manquent aux recettes de
+     * [semaine] (réseau coupé pendant les téléchargements, app fermée trop tôt). Les images
+     * déjà là, ou en cours de téléchargement, sont sautées. Appelée au chargement de la semaine
+     * et à l'ouverture de la fiche d'une recette. Sans effet par défaut (faux dépôts de test).
+     */
+    fun completerImages(semaine: SemaineIso) {}
+}
+
+/** Le fichier de la semaine n'a pas pu être écrit : le plus souvent, le téléphone est plein. */
+class EcritureImpossible(cause: Throwable? = null) : IOException(MOTIF_ECRITURE, cause) {
+    companion object {
+        const val MOTIF_ECRITURE = "Le téléphone n'a plus de place\u00A0: libère de la place, puis réessaie."
+    }
 }
 
 /** L'état d'une semaine, tel que les écrans l'affichent. */
@@ -59,12 +83,17 @@ data class EtatSemaine(
     val semaine: SemaineIso,
     val fichier: FichierRecettes,
     val menu: MenuSemaine? = null,
-    /** Le dernier problème d'accès au site, en clair ; `null` si tout va bien. */
+    /**
+     * Le dernier problème d'accès au site, en clair ; `null` si tout va bien. Il suit le
+     * statut `degrade` du fichier de la semaine, y compris après un redémarrage.
+     */
     val accesRompu: String? = null,
     /** Les numéros dont la page est en cours de lecture. */
     val enLecture: Set<Int> = emptySet(),
     /** Augmente à chaque image téléchargée : les écrans se redessinent pour l'afficher. */
     val versionImages: Int = 0,
+    /** La dernière écriture a échoué (téléphone plein), en clair ; `null` dès qu'une écriture réussit. */
+    val ecritureImpossible: String? = null,
 ) {
     val boxes: List<BoxScannee> get() = fichier.boxes
     fun recette(numero: Int): Recette? = fichier.recette(fichier.box(numero)?.recetteId)
@@ -73,7 +102,7 @@ data class EtatSemaine(
 sealed interface ResultatMenu {
     data class Lu(val menu: MenuSemaine) : ResultatMenu
 
-    /** Pas de réseau : rien n'est cassé, il faudra réessayer. */
+    /** Pas de réseau, ou un refus passager du site (429, 503…) : rien n'est cassé, il faudra réessayer. */
     data class HorsLigne(val motif: String) : ResultatMenu
 
     /** La page a répondu mais la sonde n'y trouve pas ce qu'il faut : mode dégradé. */
@@ -86,6 +115,10 @@ sealed interface ResultatRecette {
     /** Le numéro n'est pas dans le menu de la semaine (ou le menu n'est pas lu). */
     data object HorsMenu : ResultatRecette
 
+    /**
+     * Pas de réseau, refus passager du site, ou téléphone plein ([EcritureImpossible.MOTIF_ECRITURE]) :
+     * rien n'est cassé, il faudra réessayer.
+     */
     data class HorsLigne(val motif: String) : ResultatRecette
 
     data class AccesRompu(val motif: String) : ResultatRecette

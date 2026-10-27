@@ -76,8 +76,17 @@ class LecteurHelloFreshTest {
     fun `la sonde dit ce qui manque`() {
         val r = LecteurHelloFresh.lireRecette(PagesFactices.RECETTE, "u").copy(etapes = emptyList(), portions = emptyList())
         assertEquals("La page de « Poulet fictif croustillant » ne donne plus les étapes, les portions.", Sonde.verifierRecette(r))
+        // Ce que la sonde de GitHub publie : nos mots seulement, rien du titre.
+        assertEquals(listOf("les étapes", "les portions"), Sonde.champsManquants(r))
+        assertTrue(Sonde.champsManquants(LecteurHelloFresh.lireRecette(PagesFactices.RECETTE, "u")).isEmpty())
         val menu = LecteurHelloFresh.lireMenu(PagesFactices.menu(plats = PagesFactices.PLATS.take(2)), semaine, "x")
         assertTrue(Sonde.verifierMenu(menu)!!.contains("que 2 recettes"))
+    }
+
+    @Test
+    fun `refus passagers et refus qui rompent l acces`() {
+        for (code in listOf(408, 429, 502, 503, 504)) assertTrue("$code", Sonde.refusPassager(code))
+        for (code in listOf(301, 400, 403, 404, 410, 500)) assertFalse("$code", Sonde.refusPassager(code))
     }
 
     @Test

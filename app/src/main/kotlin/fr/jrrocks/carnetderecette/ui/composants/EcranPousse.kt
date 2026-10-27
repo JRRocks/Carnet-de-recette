@@ -3,6 +3,8 @@ package fr.jrrocks.carnetderecette.ui.composants
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -60,7 +62,9 @@ fun EcranPousse(
                     }
                 },
                 actions = actions,
-                windowInsets = WindowInsets.safeDrawing,
+                // Le haut et les côtés seulement : avec le bas, la barre grandirait de la hauteur de
+                // la barre de navigation, ou du clavier.
+                windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Carnet.couleurs.barre,
                     titleContentColor = Carnet.couleurs.surBarre,
