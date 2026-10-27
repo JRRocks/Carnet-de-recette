@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Outlined, graisse 600, Apache 2.0 (assets/licences). Généré par outils/icones.py. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <group android:translateX="-0" android:translateY="960">
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M184.39-204.39v-551.22h106v551.22h-106Zm591.22 0L361.91-480l413.7-275.61v551.22ZM669.61-480Zm0 77v-154l-116.78 77 116.78 77Z" />
+    </group>
+</vector>

@@ -2,6 +2,7 @@ package fr.jrrocks.carnetderecette
 
 import android.graphics.Color
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,8 +25,13 @@ import fr.jrrocks.carnetderecette.drive.DriveCarnet
 import fr.jrrocks.carnetderecette.ui.AccueilViewModel
 import fr.jrrocks.carnetderecette.ui.ActionsCarnet
 import fr.jrrocks.carnetderecette.ui.CarnetApp
+import fr.jrrocks.carnetderecette.ui.Destination
 import fr.jrrocks.carnetderecette.ui.EtatCarnet
 import fr.jrrocks.carnetderecette.ui.Onglet
+import fr.jrrocks.carnetderecette.ui.fiche.EcranFiche
+import fr.jrrocks.carnetderecette.ui.recette.EcranRecette
+import fr.jrrocks.carnetderecette.ui.scanner.EcranScanner
+import fr.jrrocks.carnetderecette.ui.seance.EcranSeance
 import fr.jrrocks.carnetderecette.ui.theme.ThemeCarnet
 import java.time.LocalDate
 
@@ -84,15 +90,28 @@ private fun Application(vm: AccueilViewModel, aujourdHui: LocalDate) {
     }
 
     var onglet by rememberSaveable { mutableStateOf(Onglet.SEMAINE) }
-    CarnetApp(
-        etat = EtatCarnet(vm.etat, vm.maj, BuildConfig.VERSION_NAME, aujourdHui),
-        onglet = onglet,
-        onOnglet = { onglet = it },
-        actions = ActionsCarnet(
-            brancher = vm::connecter,
-            mettreAJour = { vm.mettreAJour(ouvrirReglages = contexte::startActivity) },
-            majPlusTard = vm::ecarterMiseAJour,
-        ),
-        snackbars = snackbars,
-    )
+    // Les écrans poussés par-dessus les onglets (scanner, fiche, recette, séance).
+    var pile by rememberSaveable(stateSaver = Destination.SauvegardePile) { mutableStateOf(emptyList<Destination>()) }
+    val ouvrir: (Destination) -> Unit = { pile = pile + it }
+    val retour: () -> Unit = { pile = pile.dropLast(1) }
+    BackHandler(enabled = pile.isNotEmpty(), onBack = retour)
+
+    when (val haut = pile.lastOrNull()) {
+        null -> CarnetApp(
+            etat = EtatCarnet(vm.etat, vm.maj, BuildConfig.VERSION_NAME, aujourdHui),
+            onglet = onglet,
+            onOnglet = { onglet = it },
+            actions = ActionsCarnet(
+                brancher = vm::connecter,
+                mettreAJour = { vm.mettreAJour(ouvrirReglages = contexte::startActivity) },
+                majPlusTard = vm::ecarterMiseAJour,
+                ouvrir = ouvrir,
+            ),
+            snackbars = snackbars,
+        )
+        is Destination.Scanner -> EcranScanner(haut, retour, ouvrir)
+        is Destination.Fiche -> EcranFiche(haut, retour, ouvrir)
+        is Destination.Recette -> EcranRecette(haut, retour, ouvrir)
+        is Destination.Seance -> EcranSeance(haut, retour, ouvrir)
+    }
 }

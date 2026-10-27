@@ -1,7 +1,10 @@
-// Kotlin pur, sans Android : le modèle et, plus tard, le planificateur (cadrage § 7).
+// Kotlin pur, sans Android : le modèle, la lecture des pages publiques, la reconnaissance
+// des étiquettes, la séance audio et, plus tard, le planificateur (cadrage § 7).
 // Ses tests tournent en JVM simple, sans Robolectric ni SDK.
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    // Nos propres fichiers (semaine, recettes, scans) : classes @Serializable.
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Cible Java 17 comme l'app, sans exiger un JDK 17 précis sur la machine (la CI a le 17,
@@ -13,5 +16,6 @@ java {
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
+    api(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
 }

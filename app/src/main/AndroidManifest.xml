@@ -4,6 +4,26 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Mise à jour en ligne depuis les Releases GitHub (moteur Library `maj-auto-github`). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Scan des étiquettes et des fiches papier (CameraX, OCR ML Kit embarqué). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Commandes vocales en séance, sur demande seulement (cadrage § 8). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Retour haptique d'un scan validé (moteur scan-multimode, ScanFeedback). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Android 11 et plus : rendre visibles le moteur de synthèse vocale et le service de
+         reconnaissance vocale du téléphone. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="false"

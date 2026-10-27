@@ -8,7 +8,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import fr.jrrocks.carnetderecette.R
+import fr.jrrocks.carnetderecette.ui.composants.BoutonCarnet
 import fr.jrrocks.carnetderecette.ui.composants.EtatEtape
+import fr.jrrocks.carnetderecette.ui.composants.SorteBouton
 import fr.jrrocks.carnetderecette.ui.composants.EtatVide
 import fr.jrrocks.carnetderecette.ui.composants.PlanADeuxExemple
 import fr.jrrocks.carnetderecette.ui.composants.RangeeADeux.Passage
@@ -34,9 +38,12 @@ private const val RESUME =
         "Chauffe : chauffer l'huile, fait ; faire revenir les poireaux, en cours ; ajouter le riz, à faire. " +
         "Les poireaux émincés sont passés de la découpe à la chauffe."
 
-/** La cuisine à deux (lots 5 et 6). En attendant, un plan d'exemple montre le principe. */
+/**
+ * La cuisine à deux (lots 5 et 6). En attendant, un plan d'exemple montre le principe, et la
+ * lecture à voix haute s'essaie déjà sur une recette d'exemple ([essayerLaVoix]).
+ */
 @Composable
-fun EcranCuisine(marges: PaddingValues) {
+fun EcranCuisine(marges: PaddingValues, essayerLaVoix: () -> Unit = {}) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(marges)) {
         EtatVide(
             titre = "En cuisine, chacun ses tâches",
@@ -47,5 +54,13 @@ fun EcranCuisine(marges: PaddingValues) {
         ) {
             PlanADeuxExemple(EXEMPLE, LEGENDE, RESUME)
         }
+        // Déjà là : la voix et les commandes vocales, sur la recette d'exemple.
+        BoutonCarnet(
+            "Essayer la lecture à voix haute",
+            essayerLaVoix,
+            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            sorte = SorteBouton.CONTOUR,
+            icone = R.drawable.ic_volume_up,
+        )
     }
 }

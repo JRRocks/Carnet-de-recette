@@ -22,10 +22,12 @@ validées, architecture, déroulé de la semaine, ce qui est volontairement repo
    [JRRocks/Library](https://github.com/JRRocks/Library) (`INDEX.md`) et suivez sa procédure
    AGENTS.md § 5.A : copie, renommage des packages, tests repris, ligne « Utilisé dans ».
    Toute adaptation d'un moteur se consigne aussi dans sa fiche de la Library.
-4. **Mode dégradé : place réservée, pas de code.** Les moteurs de secours (OCR de la fiche
-   recette, lecture de PDF, extraction par regex, autres sites de recettes) ne se codent pas
-   tant que l'accès HelloFresh fonctionne. Seuls l'interface `SourceRecette` et le champ
-   `source` du modèle les prévoient (cadrage § 9).
+4. **Mode dégradé : place réservée, sauf la fiche papier.** Le scan de la fiche papier est
+   codé depuis le 2026-10-27, à la demande de l'utilisateur : photos et texte brut OCR,
+   **sans regex ni interprétation dans l'app**, structurés ensuite par Cowork. Les autres
+   moteurs de secours (lecture de PDF, extraction par regex, autres sites de recettes) ne se
+   codent pas tant que l'accès HelloFresh fonctionne ; seuls l'interface `SourceRecette` et
+   le champ `source` du modèle les prévoient (cadrage § 9).
 5. **Pas de regex pour lire l'étiquette des box** : le format peut changer. L'app reconnaît
    la recette en comparant le texte lu aux numéros du menu de la semaine, garde le texte
    brut, et Claude confirme (cadrage § 5).

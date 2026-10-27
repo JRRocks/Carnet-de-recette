@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import fr.jrrocks.carnetderecette.R
+import fr.jrrocks.carnetderecette.core.semaine.SemaineIso
 import fr.jrrocks.carnetderecette.ui.theme.Carnet
 import java.time.LocalDate
 
@@ -87,6 +88,8 @@ data class ActionsCarnet(
     val brancher: () -> Unit = {},
     val mettreAJour: () -> Unit = {},
     val majPlusTard: () -> Unit = {},
+    /** Pousse un écran plein écran par-dessus les onglets (scanner, recette, séance…). */
+    val ouvrir: (Destination) -> Unit = {},
 )
 
 /** À partir de cette largeur (tablette, téléphone en paysage), un rail remplace la barre du bas. */
@@ -158,7 +161,9 @@ fun CarnetApp(
                     when (courant) {
                         Onglet.SEMAINE -> EcranSemaine(etat, actions, marges, avecBouton = bouton != null)
                         Onglet.CARNET -> EcranCarnet(marges)
-                        Onglet.CUISINE -> EcranCuisine(marges)
+                        Onglet.CUISINE -> EcranCuisine(marges) {
+                            actions.ouvrir(Destination.Seance(SemaineIso.de(vendrediDeReference(etat.aujourdHui)), numero = null))
+                        }
                         Onglet.REGLAGES -> EcranReglages(etat, actions, marges)
                     }
                 }

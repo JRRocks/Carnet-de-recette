@@ -3,6 +3,10 @@
 > État : **cadrage validé le 2026-10-23**, révisé le même jour après le test d'accès Cowork,
 > révision validée le 2026-10-25. **Lot 1 codé** (squelette, connexion Drive, publication),
 > en attente de la configuration Google Cloud et d'un essai sur téléphone.
+> **2026-10-27** : priorité aux outils (scans, lecture du site, images, audio) ; la
+> configuration OAuth (clé release, Google Cloud) passe **à la toute fin**. Les outils
+> marchent donc **sans Drive** : tout reste sur le téléphone, et part sur Drive une fois
+> branché.
 > Ce document fait foi pour les décisions. Une décision qui change se corrige ici, avec sa date.
 
 ## 1. En une phrase
@@ -23,11 +27,13 @@ suit ses tâches sur son téléphone, à l'écran et à l'oreille.
 | Qui récupère | **L'app, au moment du scan** (vendredi). Cowork n'accède plus au site | 2026-10-23, validé le 2026-10-25 |
 | Nom | App « **Carnet de recette** », identifiant Android `fr.jrrocks.carnetderecette` (définitif dès la première version distribuée) | 2026-10-25 |
 | Saisie | Scan de l'**étiquette de la box** (n° de recette, nombre de personnes), **sans regex** | 2026-10-23 |
+| Fiche papier | Scan de la **fiche recette papier** codé dès maintenant, en secours : photos et texte brut lu par OCR (blocs et positions), **sans regex ni interprétation dans l'app** ; Cowork structure la recette le vendredi soir (§ 9) | 2026-10-27, demande de l'utilisateur |
 | Intelligence | **Claude Cowork le vendredi soir**, à partir des données déposées sur Drive. Pas de LLM dans l'app | 2026-10-23 |
 | Audio | Lecture **par segments** courts que l'on valide, active ou planifie, jamais toute la recette d'un trait | 2026-10-23 |
+| Commandes vocales | « suivant », « répète », « pause »… codées dès maintenant : reconnaissance vocale d'Android **sur l'appareil** quand il le permet, phrases comparées à une liste connue, sans IA (§ 8) | 2026-10-27, demande de l'utilisateur |
 | Dépôts | `Library` : moteurs réutilisables · `Carnet-de-recette` : l'app et le skill Cowork | 2026-10-23 |
 | Légal | Code public sur GitHub, contenu HelloFresh en usage privé seulement, app jamais vendue | 2026-10-23 |
-| Mode dégradé | Place réservée dans le code, **moteurs non codés** tant que l'accès HelloFresh tient | 2026-10-23 |
+| Mode dégradé | Place réservée dans le code, **moteurs non codés** tant que l'accès HelloFresh tient, **sauf la fiche papier** (ligne « Fiche papier ») | 2026-10-23, révisé le 2026-10-27 |
 | Alerte | Une sonde prévient si l'accès HelloFresh casse, pour passer en mode dégradé | 2026-10-23 |
 | Visuel | Direction « **Correspondance** » (schéma de ligne, bleu nuit, Atkinson Hyperlegible Next), **4 onglets** : Semaine, Carnet, Cuisine, Réglages. La mise à jour se propose en ligne d'état, plus en boîte de dialogue ([direction](design/direction.md), [DESIGN.md](../DESIGN.md)) | 2026-10-26 |
 
@@ -257,8 +263,17 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
 - Chaque téléphone ne lit que les segments **de son cuisinier**.
 - Texte écrit **pour l'oral** à l'import : « ½ cc » devient « une demi-cuillère à café ».
 - Minuteurs déduits des durées (« 12-14 min »).
-- Synthèse vocale **Android `TextToSpeech`** (voix françaises hors ligne). Commandes vocales
-  (« suivant », « répète ») plus tard.
+- Synthèse vocale **Android `TextToSpeech`** (voix françaises hors ligne).
+- **Commandes vocales** (décision du 2026-10-27) : « suivant » / « c'est fait », « répète »,
+  « précédent », « pause », « reprends », « minuteur ».
+  - Reconnaissance vocale d'Android, **sur l'appareil** quand il le permet (Android 12 et
+    plus), sinon le service du téléphone en préférant le hors-ligne.
+  - Ce qui est entendu est comparé à une **liste de phrases connues**, après normalisation
+    (casse, accents). Aucune IA : une phrase inconnue ne fait rien.
+  - Le micro se coupe pendant que la voix parle, pour qu'elle ne s'entende pas elle-même.
+  - Le micro n'écoute que pendant une séance, sur demande, avec un témoin visible.
+- **En attendant les segments de Cowork** (lot 3), la séance lit les **étapes de la recette**,
+  une par segment : de quoi essayer la voix et les commandes dès maintenant.
 
 ## 9. Mode dégradé et alerte
 
@@ -271,8 +286,13 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
 | App | Ouverture de l'écran de scan | Bandeau immédiat « Accès HelloFresh rompu : passe en mode dégradé (PDF ou photo de la fiche) », et statut `degrade` dans `recettes-…json` pour que Cowork le reprenne |
 | GitHub Actions (optionnel) | Chaque jeudi | Même sonde sur les pages publiques ; ouvre une issue sur ce dépôt, donc un e-mail, **avant** le vendredi |
 
-**Mode dégradé, version 1 : sans code dans l'app.** On donne le PDF ou la photo de la fiche
-à Cowork, et Claude la lit directement. Il produit le même fichier de semaine.
+**Mode dégradé.** Deux chemins vers le même fichier de semaine :
+
+- **Fiche papier, dans l'app** (décision du 2026-10-27) : on photographie le recto et le verso
+  de la fiche. L'app garde les photos et le **texte brut** lu par OCR (blocs, lignes, positions),
+  sans regex ni interprétation, et dépose le tout avec le numéro de la box. Claude structure la
+  recette le vendredi soir, à partir des photos et du texte.
+- **PDF, sans code dans l'app** : on donne le PDF à Cowork, et Claude le lit directement.
 
 **Place réservée dans le code** (interfaces et champs seulement, **aucun moteur**) :
 
@@ -280,7 +300,7 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
 SourceRecette
 ├── HelloFreshSource   actif (pages publiques)
 ├── PdfSource          réservé (PDF imprimé du site)
-├── PhotoFicheSource   réservé (OCR ou vision sur la fiche papier)
+├── PhotoFicheSource   actif depuis le 2026-10-27 (photos et texte brut OCR ; Cowork structure)
 └── JsonLdSource       réservé (autres sites de recettes : format schema.org Recipe)
 ```
 
@@ -334,10 +354,10 @@ SourceRecette
 | Lot | Contenu | Validation |
 |---|---|---|
 | 0 | Ce cadrage | ✅ 2026-10-23 |
-| 1 | Squelette Android (Kotlin, Compose, minSdk 26), clé debug versionnée, CI d'aperçu et de publication (`maj-auto-github`), connexion Drive `drive.file` et création du dossier | 🟡 Codé le 2026-10-25, relu (relecture adversariale, 9 défauts corrigés) le 2026-10-26, visuel refait (« Correspondance », version 0.2) le 2026-10-26. Reste, dans l'ordre : clé release et secrets ([publication](publication.md)), configuration Google Cloud ([guide](google-cloud.md)), essai sur téléphone |
-| 2 | Vendredi dans l'app : sonde, menu de la semaine, scan des étiquettes (`scan-multimode` adapté), lecture des pages recettes, dépôt sur Drive | Un vrai vendredi |
+| 1 | Squelette Android (Kotlin, Compose, minSdk 26), clé debug versionnée, CI d'aperçu et de publication (`maj-auto-github`), connexion Drive `drive.file` et création du dossier | 🟡 Codé le 2026-10-25, relu (relecture adversariale, 9 défauts corrigés) le 2026-10-26, visuel refait (« Correspondance », version 0.2) le 2026-10-26. Reste, **à la toute fin** (décision du 2026-10-27), dans l'ordre : clé release et secrets ([publication](publication.md)), configuration Google Cloud ([guide](google-cloud.md)), essai sur téléphone |
+| 2 | **Les outils** (priorité du 2026-10-27), sans Drive : sonde, menu de la semaine et pages recettes, stockage sur le téléphone, images en cache, scan des étiquettes (`scan-multimode` adapté), scan de la fiche papier, fiche recette, lecture à voix haute par étapes, commandes vocales, minuteurs. Dépôt sur Drive une fois branché | Un vrai vendredi, puis un essai en cuisine |
 | 3 | Skill Cowork du vendredi soir (sans accès web) : confirmation, tâches, hachoir, segments audio, fichier de semaine | Un vrai vendredi soir |
-| 4 | Import du samedi (sélecteur), catalogue local, images en cache, bandeau mode dégradé | — |
-| 5 | Mode cuisine : planificateur seul ou à deux, hachoir, segments audio, minuteurs | Un vrai repas à deux |
+| 4 | Import du samedi (sélecteur), catalogue de toutes les semaines, bandeau mode dégradé | — |
+| 5 | Mode cuisine : planificateur seul ou à deux, hachoir, segments audio de Cowork | Un vrai repas à deux |
 | 6 | Synchro des deux téléphones | — |
-| Réservé | Moteurs du mode dégradé dans l'app, autres sites de recettes | Seulement si l'accès HelloFresh tombe |
+| Réservé | Moteurs du mode dégradé dans l'app (sauf la fiche papier, codée au lot 2), autres sites de recettes | Seulement si l'accès HelloFresh tombe |
