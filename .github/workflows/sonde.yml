@@ -1,0 +1,56 @@
+name: Sonde HelloFresh
+
+# Le script d'alerte du cadrage (§ 9) : chaque jeudi, avant les livraisons du vendredi, la
+# même sonde que l'app lit le menu de la semaine et une recette sur les pages publiques. Si
+# l'accès est rompu, une issue s'ouvre sur ce dépôt (donc un e-mail) : passer en mode dégradé
+# (photo des fiches papier). Deux pages publiques par semaine, rien d'autre.
+#
+# GitHub ne lance les tâches planifiées que depuis la branche par défaut : la sonde tourne
+# chaque jeudi une fois ce fichier fusionné dans main. Avant, « Run workflow » la lance à la main.
+
+on:
+  schedule:
+    - cron: "17 6 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sonde:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Lancer la sonde
+        id: sonde
+        run: |
+          set +e
+          ./gradlew --quiet :sonde:run > sonde.txt 2>&1
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          cat sonde.txt
+
+      - name: Ouvrir (ou compléter) l'issue d'alerte
+        if: steps.sonde.outputs.code == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          titre="Sonde HelloFresh : accès rompu"
+          numero=$(gh issue list --state open --search "$titre in:title" --json number --jq '.[0].number')
+          if [ -n "$numero" ]; then
+            gh issue comment "$numero" --body-file sonde.txt
+          else
+            gh issue create --title "$titre" --body-file sonde.txt
+          fi
+
+      - name: Échouer si l'accès est rompu
+        if: steps.sonde.outputs.code == '1'
+        run: exit 1

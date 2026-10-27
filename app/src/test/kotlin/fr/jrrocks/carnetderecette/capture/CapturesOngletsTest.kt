@@ -131,6 +131,11 @@ class CapturesOngletsTest {
         compose.onNodeWithText("2 box scannées.", substring = true).assertExists()
         compose.onNodeWithText("Poulet fictif croustillant", useUnmergedTree = true).assertExists()
         capturer("05b-semaine-boxes")
+
+        // La sonde a vu le site changer : mode dégradé à un geste.
+        etat = etat.copy(semaine = SemaineFactice.etat().copy(accesRompu = "La page de « Plat factice » ne donne plus les étapes."))
+        compose.onNodeWithText("Photographier la fiche", useUnmergedTree = true).assertExists()
+        capturer("05c-semaine-acces-rompu")
         etat = etat.copy(semaine = null)
 
         // « Plus tard » : plus rien sur la Semaine.

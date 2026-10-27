@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 rootProject.name = "Carnet de recette"
 include(":core")
 include(":app")
+include(":sonde")

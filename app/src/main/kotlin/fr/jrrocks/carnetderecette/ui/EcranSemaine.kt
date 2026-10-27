@@ -54,6 +54,22 @@ fun EcranSemaine(etat: EtatCarnet, actions: ActionsCarnet, marges: PaddingValues
             .padding(top = 16.dp, bottom = if (avecBouton) SOUS_LE_BOUTON else 24.dp),
     ) {
         val drive = etat.drive
+        // Le site a changé : la sonde le dit, et le mode dégradé est à un geste.
+        etat.semaine?.accesRompu?.let { motif ->
+            LigneEtat(
+                R.drawable.ic_error,
+                "Accès HelloFresh rompu\u00A0: $motif Passe en mode dégradé\u00A0: photographie la fiche papier de chaque box.",
+                TonEtat.ERREUR,
+                Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+            ) {
+                BoutonCarnet(
+                    "Photographier la fiche",
+                    { actions.ouvrir(Destination.Fiche(etat.semaineIso, numero = null)) },
+                    sorte = SorteBouton.CONTOUR,
+                    icone = R.drawable.ic_photo_camera,
+                )
+            }
+        }
         if (etat.maj.surLaSemaine) {
             LigneMiseAJour(etat.maj, actions, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
         }
