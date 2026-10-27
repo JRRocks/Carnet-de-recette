@@ -67,6 +67,8 @@ data class EtatSeance(
     val voixCoupee: Boolean,
     val micro: EtatEcoute,
     val entendu: Entendu?,
+    /** La recette finie a fermé le micro ouvert : l'écran de fin le dit. */
+    val microCoupeEnFin: Boolean = false,
 )
 
 /** Les gestes de la séance, remontés au ViewModel. */
@@ -103,6 +105,7 @@ fun etatSeance(
     voixCoupee: Boolean,
     micro: EtatEcoute,
     entendu: Entendu?,
+    microCoupeEnFin: Boolean = false,
 ): EtatSeance {
     val segments = lecteur.segments.mapIndexed { i, segment ->
         SegmentEcran(
@@ -147,6 +150,8 @@ fun etatSeance(
         voixCoupee = voixCoupee,
         micro = micro,
         entendu = entendu,
+        // Revenu à une étape, ce n'est plus la fin : rien à dire.
+        microCoupeEnFin = microCoupeEnFin && lecteur.terminee && micro != EtatEcoute.Ecoute,
     )
 }
 

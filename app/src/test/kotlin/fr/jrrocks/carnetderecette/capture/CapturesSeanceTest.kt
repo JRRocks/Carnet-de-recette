@@ -11,6 +11,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -18,10 +21,12 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import fr.jrrocks.carnetderecette.audio.EtatEcoute
 import fr.jrrocks.carnetderecette.audio.EtatVoix
 import fr.jrrocks.carnetderecette.core.audio.CommandeVocale
+import fr.jrrocks.carnetderecette.core.audio.Declencheur
 import fr.jrrocks.carnetderecette.core.audio.LecteurSegments
 import fr.jrrocks.carnetderecette.core.audio.SegmentsDeRecette
 import fr.jrrocks.carnetderecette.core.recette.RecetteExemple
@@ -32,6 +37,7 @@ import fr.jrrocks.carnetderecette.ui.seance.SeanceContenu
 import fr.jrrocks.carnetderecette.ui.seance.etatSeance
 import fr.jrrocks.carnetderecette.ui.theme.ThemeCarnet
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -58,6 +64,7 @@ class CapturesSeanceTest {
     private var etat by mutableStateOf(construire())
     private var sombre by mutableStateOf(false)
     private var police by mutableFloatStateOf(1f)
+    private var actions = ActionsSeance()
 
     private fun construire(
         restants: Map<String, Int> = emptyMap(),
@@ -65,7 +72,8 @@ class CapturesSeanceTest {
         micro: EtatEcoute = EtatEcoute.Arretee,
         entendu: Entendu? = null,
         voixCoupee: Boolean = false,
-    ): EtatSeance = etatSeance(recette.titre, lecteur.etat, textes, restants, voix, voixCoupee, micro, entendu)
+        microCoupeEnFin: Boolean = false,
+    ): EtatSeance = etatSeance(recette.titre, lecteur.etat, textes, restants, voix, voixCoupee, micro, entendu, microCoupeEnFin)
 
     private fun capturer(nom: String) {
         compose.waitForIdle()
@@ -89,7 +97,7 @@ class CapturesSeanceTest {
             val densite = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(densite.density, police)) {
                 ThemeCarnet(sombre = sombre) {
-                    SeanceContenu(etat, ActionsSeance(), Modifier.testTag("capture"))
+                    SeanceContenu(etat, actions, Modifier.testTag("capture"))
                 }
             }
         }
@@ -163,9 +171,47 @@ class CapturesSeanceTest {
         etat = construire()
         compose.onNodeWithText("Recette terminée").assertExists()
         compose.onNodeWithText("Revenir").assertExists()
+        compose.onAllNodesWithText("Micro coupé", substring = true).assertCountEquals(0)
         sansVocabulaireDeMetro()
         capturer("65-seance-terminee")
+
+        // Le micro était ouvert : la fin l'a fermé, et le dit.
+        etat = construire(microCoupeEnFin = true)
+        compose.onNodeWithText("Micro coupé", substring = true).assertExists()
+        compose.onNodeWithContentDescription("Écouter les commandes vocales").assertExists()
+        capturer("65b-seance-terminee-micro-coupe")
+
+        // Rouvert à la main sur l'écran de fin : le témoin reste visible.
+        etat = construire(micro = EtatEcoute.Ecoute, microCoupeEnFin = true)
+        compose.onAllNodesWithText("Micro coupé", substring = true).assertCountEquals(0)
+        compose.onNodeWithText("Micro ouvert", substring = true).assertExists()
     }
+
+    @Test
+    fun `le menu du declencheur suit son etape, pas sa place`() {
+        val changes = mutableListOf<Pair<String, Declencheur>>()
+        actions = ActionsSeance(changerDeclencheur = { id, declencheur -> changes += id to declencheur })
+        // L'étape 3 en cours ; l'étape 4 est la première à venir.
+        repeat(2) { lecteur.valider() }
+        etat = construire()
+        afficher()
+        compose.onNode(clicNomme("Choisir quand l'étape 4 sera lue")).performClick()
+        compose.onNodeWithText("Lue sur demande").assertExists()
+
+        // L'étape 4 devient l'étape en cours (fin du minuteur, ou « ok » entendu) : son menu se
+        // ferme, au lieu de rester ouvert sur l'étape 5 venue à sa place.
+        lecteur.valider()
+        etat = construire()
+        compose.onAllNodesWithText("Lue sur demande").assertCountEquals(0)
+
+        // Rouvert, le menu change bien l'étape qu'il montre.
+        compose.onNode(clicNomme("Choisir quand l'étape 5 sera lue")).performClick()
+        compose.onNodeWithText("Lue sur demande").performClick()
+        assertEquals(listOf("e5" to Declencheur.MANUEL), changes)
+    }
+
+    private fun clicNomme(libelle: String) =
+        SemanticsMatcher("clic «\u00A0$libelle\u00A0»") { it.config.getOrNull(SemanticsActions.OnClick)?.label == libelle }
 
     @Test
     fun `sans voix francaise ni micro`() {

@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Retour haptique d'un scan validé (moteur scan-multimode, ScanFeedback). -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Minuteurs de la séance : le téléphone reste éveillé, écran éteint, jusqu'à la fin du
+         dernier minuteur et de sa sonnerie (verrous bornés, cadrage § 8). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />

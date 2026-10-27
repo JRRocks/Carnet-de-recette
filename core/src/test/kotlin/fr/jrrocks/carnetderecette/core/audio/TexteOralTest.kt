@@ -89,6 +89,38 @@ class TexteOralTest {
     }
 
     @Test
+    fun `les cuilleres demi-abregees`() {
+        verifier(
+            "Ajoute 1 ½ c. à soupe d'huile" to "Ajoute une cuillère à soupe et demie d'huile",
+            "½ c. à café de sel" to "une demi-cuillère à café de sel",
+            "2 c. à soupe" to "2 cuillères à soupe",
+            "1 c.à café" to "une cuillère à café",
+            "1 c à c de cumin" to "une cuillère à café de cumin",
+            "3 c à s" to "3 cuillères à soupe",
+            "1 c à soupe" to "une cuillère à soupe",
+            "C'est à côté" to "C'est à côté",
+        )
+    }
+
+    @Test
+    fun `un texte hostile ne fait jamais planter et garde ce qu'il ne sait pas lire`() {
+        verifier(
+            "Répète les étapes 1,2,3." to "Répète les étapes 1,2,3.",
+            "1.2.3" to "1.2.3",
+            "1,5,2 cc" to "1,5,2 cuillères à café",
+            "１２ min" to "１２ minutes",
+            "٣ g" to "٣ g",
+            "x99999999999" to "x99999999999",
+        )
+        val hostiles = listOf(
+            "1,2,3", "1.2.3", "1,,2", "1..2", ",5", "1,", "１２", "１,５ min", "٣,٥ cc", "½½", "½ ½ cc", "3/", "/4", "1/", "/",
+            "1/2/", "x", "x1/2/3", "99999999999999999999999 g", "9".repeat(400), "1,${"2".repeat(400)} min", "12-", "-14 min", "°",
+            "c.", "c. à", "1 ½", "¾¾¾", "", " ", "\n\n", "•", "- \n -", "\u00A0", "x0", "×", "1 h 30", "1/2/2026 1/2",
+        )
+        for (texte in hostiles) TexteOral.pourLOral(texte)
+    }
+
+    @Test
     fun `les poids et volumes apres un nombre, au singulier sous deux`() {
         verifier(
             "200 g de farine" to "200 grammes de farine",

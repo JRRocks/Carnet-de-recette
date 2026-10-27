@@ -37,28 +37,67 @@ object SegmentsDeRecette {
 
     /**
      * La durée écrite dans [texte], en secondes ; `null` s'il n'y en a pas. Lue mot à mot, sans
-     * regex : un nombre suivi de « min », « mn » ou « minute(s) », ou un intervalle
-     * (« 12 à 14 min », « 12-14 minutes ») dont on garde la borne haute. Plusieurs durées dans
-     * une même étape : la plus longue, celle qu'on attend vraiment.
+     * regex : un nombre suivi de « min », « mn », « minute(s) », « h » ou « heure(s) », ou un
+     * intervalle (« 12 à 14 min », « 12-14 minutes », « 1 à 2 h ») dont on garde la borne
+     * haute. Un nombre juste après l'unité la complète : « 1 h 30 » fait 90 minutes,
+     * « 4 min 30 » quatre minutes trente. Plusieurs durées dans une même étape : la plus
+     * longue, celle qu'on attend vraiment.
+     *
+     * Pas de minuteur plutôt qu'un faux : une fraction (« 1/2 min », « ½ h ») ou un nombre
+     * douteux après l'unité (« 4 min 30 de chaque côté ») ne donnent rien.
      */
     fun dureeEnSecondes(texte: String): Int? {
         val mots = decouper(texte).filter { it.sorte != SorteJeton.BLANC }
-        var plusLongue: Double? = null
-        for ((u, mot) in mots.withIndex()) {
-            if (mot.sorte != SorteJeton.LETTRES || mot.minuscule !in MINUTES) continue
-            val haute = mots.getOrNull(u - 1)?.takeIf { it.sorte == SorteJeton.CHIFFRES } ?: continue
-            val basse = mots.getOrNull(u - 3)?.takeIf {
-                it.sorte == SorteJeton.CHIFFRES && mots[u - 2].minuscule in LIENS_D_INTERVALLE
-            }
-            val minutes = maxOf(haute.valeur, basse?.valeur ?: 0.0)
-            if (minutes > 0 && minutes <= MINUTES_MAX) plusLongue = maxOf(plusLongue ?: 0.0, minutes)
+        return mots.indices.mapNotNull { dureeA(mots, it) }.filter { it in 1..SECONDES_MAX }.maxOrNull()
+    }
+
+    /** La durée dont l'unité est le mot [u], en secondes ; `null` si ce n'est pas une unité, ou si la durée est douteuse. */
+    private fun dureeA(mots: List<Jeton>, u: Int): Int? {
+        val unite = secondesParUnite(mots[u]) ?: return null
+        val haute = nombreAvant(mots, u) ?: return null
+        // La borne basse d'un intervalle ; mais dans « 4 min 30 à 5 min », 30 finit la durée d'avant.
+        val basse = nombreAvant(mots, u - 2)?.takeIf {
+            mots[u - 2].minuscule in LIENS_D_INTERVALLE && mots.getOrNull(u - 4)?.let(::secondesParUnite) == null
         }
-        return plusLongue?.let { (it * 60).roundToInt() }
+        val complement = complementApres(mots, u, unite) ?: return null
+        return maxOf(haute * unite + complement, (basse ?: 0.0) * unite).takeIf { it.isFinite() }?.roundToInt()
+    }
+
+    private fun secondesParUnite(mot: Jeton): Int? = when {
+        mot.sorte != SorteJeton.LETTRES -> null
+        mot.minuscule in MINUTES -> 60
+        mot.minuscule in HEURES -> SECONDES_PAR_HEURE
+        else -> null
+    }
+
+    /** Le nombre juste avant le mot [i], s'il n'est pas le bas d'une fraction (« 1/2 min »). */
+    private fun nombreAvant(mots: List<Jeton>, i: Int): Double? =
+        mots.getOrNull(i - 1)?.takeIf { it.sorte == SorteJeton.CHIFFRES && mots.getOrNull(i - 2)?.texte != "/" }?.valeur
+
+    /**
+     * Le nombre qui complète l'unité [u], en secondes : « 1 h 30 » (avec ou sans « min » ensuite)
+     * ajoute 30 minutes, « 4 min 30 » 30 secondes, mais seulement suivi d'une ponctuation, de
+     * « s » ou de « secondes », ou en fin de texte. 0 sans nombre après, `null` s'il est douteux.
+     */
+    private fun complementApres(mots: List<Jeton>, u: Int, unite: Int): Int? {
+        val nombre = mots.getOrNull(u + 1)?.takeIf { it.sorte == SorteJeton.CHIFFRES } ?: return 0
+        val n = nombre.texte.toIntOrNull()?.takeIf { it in 0..59 } ?: return null
+        val suite = mots.getOrNull(u + 2)
+        // « 1 h 1/2 », « 4 min 1/2 » : une fraction de quoi ? On ne devine pas.
+        if (suite?.texte == "/") return null
+        return when {
+            unite == SECONDES_PAR_HEURE -> n * 60
+            suite == null || suite.sorte == SorteJeton.SIGNE || suite.minuscule in SECONDES -> n
+            else -> null
+        }
     }
 
     private val MINUTES = setOf("min", "mn", "minute", "minutes")
+    private val HEURES = setOf("h", "heure", "heures")
+    private val SECONDES = setOf("s", "sec", "seconde", "secondes")
     private val LIENS_D_INTERVALLE = setOf("à", "a", "-", "–", "ou")
+    private const val SECONDES_PAR_HEURE = 3_600
 
     /** Au-delà de dix heures, ce n'est plus un minuteur de cuisine : sans doute une faute de frappe. */
-    private const val MINUTES_MAX = 600.0
+    private const val SECONDES_MAX = 10 * SECONDES_PAR_HEURE
 }

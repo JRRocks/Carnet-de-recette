@@ -29,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -198,7 +199,11 @@ private fun Schema(etat: EtatSeance, actions: ActionsSeance) {
             RangeeCourante(it, traitAuDessus = premier != it || it.numero > 1, traitAuDessous = etat.suivants.isNotEmpty(), actions)
         }
         etat.suivants.forEachIndexed { i, segment ->
-            RangeeAVenir(segment, traitAuDessous = i < etat.suivants.lastIndex || etat.restants > 0, actions)
+            // Liée à l'étape, pas à la place : quand la liste avance, un menu ouvert se ferme au
+            // lieu de passer à l'étape d'après et de modifier la mauvaise.
+            key(segment.id) {
+                RangeeAVenir(segment, traitAuDessous = i < etat.suivants.lastIndex || etat.restants > 0, actions)
+            }
         }
         if (etat.restants > 0) RangeeReste(etat.restants)
     }
@@ -507,6 +512,11 @@ private fun FinDeSeance(etat: EtatSeance, actions: ActionsSeance, modifier: Modi
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 24.dp)) {
         LigneDeTemps(listOf(Etape("Recette terminée", EtatEtape.FAITE, detail = "Toutes les étapes sont faites. Bon appétit\u00A0!")))
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (etat.microCoupeEnFin) {
+                LigneEtat(R.drawable.ic_mic_off, "Micro coupé\u00A0: la recette est finie, plus rien n'écoute.", TonEtat.NEUTRE)
+            }
+            // Rouvert à la main sur cet écran : le témoin reste visible, comme au-dessus du dock.
+            if (etat.micro == EtatEcoute.Ecoute) LigneMicro(etat.entendu)
             enMarche.forEach { AutreMinuteur(it, actions) }
             BoutonCarnet("Revenir", actions.revenir, Modifier.fillMaxWidth().heightIn(min = 72.dp), icone = R.drawable.ic_arrow_back)
             BoutonCarnet("Revoir la dernière étape", actions.precedent, Modifier.fillMaxWidth(), sorte = SorteBouton.TEXTE, icone = R.drawable.ic_skip_previous)

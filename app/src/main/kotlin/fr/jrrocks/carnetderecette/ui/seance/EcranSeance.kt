@@ -80,9 +80,11 @@ fun SeanceDeRecette(recette: Recette, onRetour: () -> Unit) {
     val activite = remember(contexte) { contexte.activite() }
     val vm = seanceViewModel(recette, activite)
 
-    // Garder l'écran allumé le temps de la séance seulement : les mains sont occupées.
-    DisposableEffect(activite) {
-        val fenetre = activite?.window
+    // Garder l'écran allumé le temps de la séance seulement : les mains sont occupées. La recette
+    // finie, le téléphone posé pendant le repas s'éteint comme d'habitude.
+    val terminee = vm.etat.terminee
+    DisposableEffect(activite, terminee) {
+        val fenetre = activite?.window?.takeUnless { terminee }
         fenetre?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose { fenetre?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
