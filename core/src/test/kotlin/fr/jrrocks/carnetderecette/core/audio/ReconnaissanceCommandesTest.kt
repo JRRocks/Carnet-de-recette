@@ -16,7 +16,7 @@ class ReconnaissanceCommandesTest {
     private fun entendu(vararg alternatives: String) = ReconnaissanceCommandes.reconnaitre(alternatives.toList())
 
     private fun verifier(attendu: CommandeVocale?, vararg phrases: String) {
-        for (phrase in phrases) assertEquals("pour « $phrase »", attendu, entendu(phrase))
+        for (phrase in phrases) assertEquals("pour «\u00A0$phrase\u00A0»", attendu, entendu(phrase))
     }
 
     @Test

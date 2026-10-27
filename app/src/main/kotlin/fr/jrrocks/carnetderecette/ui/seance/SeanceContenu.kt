@@ -136,7 +136,7 @@ private fun LignesEtat(etat: EtatSeance, actions: ActionsSeance) {
             EtatVoix.INDISPONIBLE -> add {
                 LigneEtat(
                     R.drawable.ic_error,
-                    "Aucune synthèse vocale ne répond sur ce téléphone : les étapes restent à l'écran.",
+                    "Aucune synthèse vocale ne répond sur ce téléphone\u00A0: les étapes restent à l'écran.",
                     TonEtat.ERREUR,
                     it,
                 ) { BoutonCarnet("Réglages de la voix", actions.reglerVoix, sorte = SorteBouton.CONTOUR) }
@@ -147,7 +147,7 @@ private fun LignesEtat(etat: EtatSeance, actions: ActionsSeance) {
             EtatEcoute.PermissionRequise -> add {
                 LigneEtat(
                     R.drawable.ic_mic_off,
-                    "Le micro n'est pas autorisé. Pour dire « suivant » sans toucher l'écran, autorise-le dans les réglages du téléphone.",
+                    "Le micro n'est pas autorisé. Pour dire «\u00A0suivant\u00A0» sans toucher l'écran, autorise-le dans les réglages du téléphone.",
                     TonEtat.INFO,
                     it,
                 ) { BoutonCarnet("Ouvrir les réglages", actions.reglerMicro) }
@@ -155,7 +155,7 @@ private fun LignesEtat(etat: EtatSeance, actions: ActionsSeance) {
             EtatEcoute.Indisponible -> add {
                 LigneEtat(
                     R.drawable.ic_mic_off,
-                    "Pas de reconnaissance vocale sur ce téléphone : les boutons font la même chose.",
+                    "Pas de reconnaissance vocale sur ce téléphone\u00A0: les boutons font la même chose.",
                     TonEtat.NEUTRE,
                     it,
                 )
@@ -176,7 +176,7 @@ private fun LignesEtat(etat: EtatSeance, actions: ActionsSeance) {
         }
         if (etat.voixCoupee) {
             add {
-                LigneEtat(R.drawable.ic_volume_off, "Voix coupée : les étapes s'affichent sans être lues.", TonEtat.NEUTRE, it) {
+                LigneEtat(R.drawable.ic_volume_off, "Voix coupée\u00A0: les étapes s'affichent sans être lues.", TonEtat.NEUTRE, it) {
                     BoutonCarnet("Rétablir la voix", actions.basculerVoix, sorte = SorteBouton.TEXTE)
                 }
             }
@@ -320,7 +320,7 @@ private fun MentionCoupee(modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(R.drawable.ic_volume_off), contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(8.dp))
-        Text("Coupée : pas lue à voix haute", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Coupée\u00A0: pas lue à voix haute", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -425,22 +425,22 @@ private fun LigneMicro(entendu: Entendu?) {
         Icon(painterResource(R.drawable.ic_mic), contentDescription = null, Modifier.size(24.dp), tint = couleurs.primary)
         Spacer(Modifier.width(12.dp))
         when (entendu) {
-            null -> Text("Micro ouvert : dis « suivant », « répète » ou « pause ».", style = style, color = couleurs.onSurface)
+            null -> Text("Micro ouvert\u00A0: dis «\u00A0suivant\u00A0», «\u00A0répète\u00A0» ou «\u00A0pause\u00A0».", style = style, color = couleurs.onSurface)
             is Entendu.Compris -> Text(
-                "Micro ouvert. Compris : « ${entendu.commande.libelle} »",
+                "Micro ouvert. Compris\u00A0: «\u00A0${entendu.commande.libelle}\u00A0»",
                 style = style,
                 fontWeight = FontWeight.Bold,
                 color = couleurs.onSurface,
             )
             is Entendu.EnCours -> Text(
-                "Micro ouvert. J'entends : « ${entendu.texte} »",
+                "Micro ouvert. J'entends\u00A0: «\u00A0${entendu.texte}\u00A0»",
                 style = style,
                 color = couleurs.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             is Entendu.PasCompris -> Text(
-                "Micro ouvert. Pas une commande : « ${entendu.texte} »",
+                "Micro ouvert. Pas une commande\u00A0: «\u00A0${entendu.texte}\u00A0»",
                 style = style,
                 color = couleurs.onSurface,
                 maxLines = 2,
@@ -455,7 +455,7 @@ private fun LigneMicro(entendu: Entendu?) {
 private fun BoutonMinuteur(minuteur: MinuteurEcran, actions: ActionsSeance, modifier: Modifier = Modifier) {
     val couleurs = MaterialTheme.colorScheme
     val description = if (minuteur.enMarche) {
-        "Minuteur de l'étape ${minuteur.numero} : ${dureeDite(minuteur.secondes)} restantes. Arrêter le minuteur."
+        "Minuteur de l'étape ${minuteur.numero}\u00A0: ${dureeDite(minuteur.secondes)} restantes. Arrêter le minuteur."
     } else {
         "Lancer le minuteur de ${dureeDite(minuteur.secondes)}"
     }
@@ -488,11 +488,11 @@ private fun AutreMinuteur(minuteur: MinuteurEcran, actions: ActionsSeance) {
         Icon(painterResource(R.drawable.ic_timer), contentDescription = null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
         Text(
-            "Étape ${minuteur.numero} : ${duree(minuteur.secondes)}",
+            "Étape ${minuteur.numero}\u00A0: ${duree(minuteur.secondes)}",
             style = MaterialTheme.typography.bodyLarge.chiffres(),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f).clearAndSetSemantics {
-                contentDescription = "Minuteur de l'étape ${minuteur.numero} : ${dureeDite(minuteur.secondes)} restantes"
+                contentDescription = "Minuteur de l'étape ${minuteur.numero}\u00A0: ${dureeDite(minuteur.secondes)} restantes"
             },
         )
         BoutonCarnet("Arrêter", { actions.minuteur(minuteur) }, sorte = SorteBouton.TEXTE)
@@ -505,7 +505,7 @@ private fun AutreMinuteur(minuteur: MinuteurEcran, actions: ActionsSeance) {
 private fun FinDeSeance(etat: EtatSeance, actions: ActionsSeance, modifier: Modifier = Modifier) {
     val enMarche = listOfNotNull(etat.minuteur?.takeIf { it.enMarche }) + etat.autresMinuteurs
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 24.dp)) {
-        LigneDeTemps(listOf(Etape("Recette terminée", EtatEtape.FAITE, detail = "Toutes les étapes sont faites. Bon appétit !")))
+        LigneDeTemps(listOf(Etape("Recette terminée", EtatEtape.FAITE, detail = "Toutes les étapes sont faites. Bon appétit\u00A0!")))
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             enMarche.forEach { AutreMinuteur(it, actions) }
             BoutonCarnet("Revenir", actions.revenir, Modifier.fillMaxWidth().heightIn(min = 72.dp), icone = R.drawable.ic_arrow_back)

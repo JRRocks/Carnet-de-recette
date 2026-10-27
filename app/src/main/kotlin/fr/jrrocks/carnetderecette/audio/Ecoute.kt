@@ -184,7 +184,7 @@ class Ecoute(contexte: Context, private val suivi: Suivi) {
                     etat = EtatEcoute.PermissionRequise
                 }
                 SpeechRecognizer.ERROR_AUDIO ->
-                    echouer("Le micro ne répond pas. Une autre app l'utilise peut-être : ferme-la, puis réessaie.")
+                    echouer("Le micro ne répond pas. Une autre app l'utilise peut-être\u00A0: ferme-la, puis réessaie.")
                 SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_SERVER ->
                     echouer(
                         "La reconnaissance vocale demande le réseau sur ce téléphone. Installe le français hors ligne " +

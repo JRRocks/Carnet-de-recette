@@ -177,7 +177,7 @@ class CapturesSeanceTest {
         capturer("64-seance-voix-absente")
 
         sombre = true
-        etat = construire(voix = EtatVoix.INDISPONIBLE, micro = EtatEcoute.Erreur("Le micro ne répond pas. Une autre app l'utilise peut-être : ferme-la, puis réessaie."))
+        etat = construire(voix = EtatVoix.INDISPONIBLE, micro = EtatEcoute.Erreur("Le micro ne répond pas. Une autre app l'utilise peut-être\u00A0: ferme-la, puis réessaie."))
         compose.onNodeWithText("Réessayer").assertExists()
         capturer("69-seance-erreurs-sombre")
     }

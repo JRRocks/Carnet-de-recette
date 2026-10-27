@@ -57,6 +57,9 @@ android {
         // en publiant, c'est publier une version que personne n'installera.
         versionCode = 3
         versionName = "0.3"
+        // L'OCR embarqué (ML Kit) pèse 7 à 12 Mo par architecture : les téléphones sont en
+        // ARM, les versions x86 doubleraient l'APK téléchargé à chaque mise à jour.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
     buildTypes {
         release {

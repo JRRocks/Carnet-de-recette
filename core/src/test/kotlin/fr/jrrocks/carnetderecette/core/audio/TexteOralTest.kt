@@ -8,7 +8,7 @@ class TexteOralTest {
     private fun oral(texte: String) = TexteOral.pourLOral(texte)
 
     private fun verifier(vararg cas: Pair<String, String>) {
-        for ((ecrit, attendu) in cas) assertEquals("pour « $ecrit »", attendu, oral(ecrit))
+        for ((ecrit, attendu) in cas) assertEquals("pour «\u00A0$ecrit\u00A0»", attendu, oral(ecrit))
     }
 
     @Test
@@ -103,7 +103,7 @@ class TexteOralTest {
             "1 l" to "1 litre",
             "2 L" to "2 litres",
             "0,5 l" to "0,5 litre",
-            "200 g" to "200 grammes",
+            "200\u00A0g" to "200 grammes",
         )
     }
 
