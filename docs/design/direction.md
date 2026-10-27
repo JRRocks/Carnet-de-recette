@@ -112,18 +112,33 @@ est actif) :
   Puis la liste des recettes de la semaine (rangées de 72 dp, pas de cartes). Le bouton
   flottant suit l'étape : « Scanner les box », « Importer la semaine », « Cuisiner la 207 ».
   L'étape courante se déduit des données (box scannées, semaine importée), pas du seul jour.
-- **Scanner** (lot 2) : aperçu caméra en moitié haute, tout ce qui se touche en moitié basse,
+- **Scanner** (lot 2, en place) : aperçu caméra en haut, tout ce qui se touche en bas,
   dernier résultat en grand (« 207 » en displaySmall tabulaire), sélecteur de personnes,
-  « Terminer » pleine largeur.
-- **Carnet** (lot 4) : liste groupée par semaine (en-têtes « Semaine 44 »), numéro en gras
-  tabulaire, vignette de 56 dp en bout de ligne, jamais d'image en tête ; fiche recette avec
-  onglets Plan, Ingrédients, Fiche d'origine.
+  « Terminer » pleine largeur. L'aperçu pèse 0,85 contre 1 pour le bas (0,6 au-delà de
+  150 % de police) : le dernier résultat et « Déjà scannées » restent sous le pouce. Le
+  réticule est dessiné à part (coins blancs sur liseré sombre) et grandit avec le consensus.
+  « Pas reconnue ? Choisis dans le menu » et « Photographier la fiche » en boutons texte.
+- **Fiche papier** (lot 2, en place) : même aperçu que le Scanner, puis la box (facultative,
+  numéro ou choix dans le menu), les pages (recto, verso facultatif) avec vignette et
+  nombre de blocs lus, et l'action du moment en bas pleine largeur (« Photographier le
+  recto », « Enregistrer la fiche »). Aucun texte interprété : la fiche dit seulement ce qui
+  a été lu.
+- **Carnet** (lot 4 ; liste de la semaine en place au lot 2) : liste groupée par semaine
+  (en-têtes « Semaine 44 »), numéro en gras tabulaire, vignette de 56 dp en bout de ligne,
+  jamais d'image en tête ; fiche recette avec onglets Plan, Ingrédients, Fiche d'origine.
+  Au lot 2, la fiche recette est une seule page : photo du plat 16:10, personnes −/+,
+  ingrédients (quantités en colonne), ustensiles, étapes sur la ligne, allergènes, mention
+  « pour ton usage privé » ; bouton flottant « Lire à voix haute ».
 - **Cuisine** (lots 5 et 6) : « À deux | Seul », le plan à deux de ce soir, puis « Je suis… »
   (premier usage) ou « Commencer mes tâches ».
 - **Séance** : la tâche en cours en headlineLarge (32 sp), les deux suivantes, l'attente de
   l'autre ou le passage de main comme une rangée à part entière, dans l'ordre où la voix les
   dira ; dock bas avec minuteur et « Relire » (72 dp) et « C'est fait » (72 dp, pleine largeur).
-  Pas d'« Étape 3/7 » ni de sur-titre.
+  Pas d'« Étape 3/7 » ni de sur-titre. Au lot 2 (en place), la séance lit les étapes de la
+  recette : étape en cours en 32 sp, ramenée à 24 sp au-delà de 90 caractères ; voix et micro
+  dans la barre du haut, témoin « Micro ouvert » au-dessus du dock ; sous chaque étape à
+  venir, son déclencheur (« Lue après l'étape d'avant », « à la fin du minuteur ») et son
+  interrupteur de lecture.
 
 ## États
 

@@ -152,13 +152,12 @@ On ne fige pas ce format.
   - La chaîne : `OcrAnalyzer` → `ScanConsensus` (5 lectures identiques) → `ScanDebouncer`
     → `ScanFeedback`.
   - On n'utilise **pas** `RegexRuleEngine`.
-- **Adaptation nécessaire** : `OcrAnalyzer` ne remonte aujourd'hui que le texte brut.
-  - Il doit remonter aussi les **éléments** reconnus, avec leur **hauteur et leur position**
-    (taille de police relative).
-  - Il ne garde que les éléments situés dans le réticule.
-  - À consigner dans la fiche de la Library (AGENTS.md, règle 6).
-- **Consensus** : il porte sur la « signature » de l'étiquette, c'est-à-dire l'ensemble des
-  éléments normalisés (`ScanValue`) vus dans le réticule.
+- **Adaptation** (faite le 2026-10-27, consignée dans la fiche de la Library) : `OcrAnalyzer`
+  devient `OcrElements`, qui remonte les **éléments** reconnus dont le centre est dans le
+  réticule, avec leur **hauteur et leur position** rapportées au réticule.
+- **Consensus** : il porte sur le **numéro reconnu** (5 images d'accord). Une « signature »
+  de l'étiquette (tous les éléments lus) changerait au moindre bruit d'OCR. Pendant ce temps,
+  chaque image vote pour le nombre de personnes qu'elle a lu.
 - **Reconnaissance de la recette, sans format.**
   - Le menu de la semaine est chargé avant le scan.
   - Un élément lu qui est **exactement l'un des numéros de ce menu** désigne la recette.
@@ -370,7 +369,7 @@ SourceRecette
 |---|---|---|
 | 0 | Ce cadrage | ✅ 2026-10-23 |
 | 1 | Squelette Android (Kotlin, Compose, minSdk 26), clé debug versionnée, CI d'aperçu et de publication (`maj-auto-github`), connexion Drive `drive.file` et création du dossier | 🟡 Codé le 2026-10-25, relu (relecture adversariale, 9 défauts corrigés) le 2026-10-26, visuel refait (« Correspondance », version 0.2) le 2026-10-26. Reste, **à la toute fin** (décision du 2026-10-27), dans l'ordre : clé release et secrets ([publication](publication.md)), configuration Google Cloud ([guide](google-cloud.md)), essai sur téléphone |
-| 2 | **Les outils** (priorité du 2026-10-27), sans Drive : sonde, menu de la semaine et pages recettes, stockage sur le téléphone, images en cache, scan des étiquettes (`scan-multimode` adapté), scan de la fiche papier, fiche recette, lecture à voix haute par étapes, commandes vocales, minuteurs. Dépôt sur Drive une fois branché | Un vrai vendredi, puis un essai en cuisine |
+| 2 | **Les outils** (priorité du 2026-10-27), sans Drive : sonde, menu de la semaine et pages recettes, stockage sur le téléphone, images en cache, scan des étiquettes (`scan-multimode` adapté), scan de la fiche papier, fiche recette, lecture à voix haute par étapes, commandes vocales, minuteurs. Dépôt sur Drive une fois branché | 🟡 Codé le 2026-10-27 (version 0.3), relu (relecture adversariale). Reste : dépôt sur Drive, puis un vrai vendredi et un essai en cuisine sur téléphone |
 | 3 | Skill Cowork du vendredi soir (sans accès web) : confirmation, tâches, hachoir, segments audio, fichier de semaine | Un vrai vendredi soir |
 | 4 | Import du samedi (sélecteur), catalogue de toutes les semaines, bandeau mode dégradé | — |
 | 5 | Mode cuisine : planificateur seul ou à deux, hachoir, segments audio de Cowork | Un vrai repas à deux |
