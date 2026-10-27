@@ -13,10 +13,16 @@ import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
@@ -24,24 +30,49 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import fr.jrrocks.carnetderecette.R
 import fr.jrrocks.carnetderecette.audio.EtatEcoute
 import fr.jrrocks.carnetderecette.audio.EtatVoix
 import fr.jrrocks.carnetderecette.audio.Voix
 import fr.jrrocks.carnetderecette.core.recette.Recette
 import fr.jrrocks.carnetderecette.core.recette.RecetteExemple
+import fr.jrrocks.carnetderecette.donnees.DepotLocal
 import fr.jrrocks.carnetderecette.ui.Destination
+import fr.jrrocks.carnetderecette.ui.composants.BoutonCarnet
+import fr.jrrocks.carnetderecette.ui.composants.EcranPousse
+import fr.jrrocks.carnetderecette.ui.composants.LigneEtat
+import fr.jrrocks.carnetderecette.ui.composants.SorteBouton
+import fr.jrrocks.carnetderecette.ui.composants.TonEtat
 
 /** La séance lue à voix haute (cadrage § 8), en plein écran, écran allumé. */
 @Composable
 fun EcranSeance(destination: Destination.Seance, onRetour: () -> Unit, ouvrir: (Destination) -> Unit) {
-    // TODO recette réelle : branchée avec le dépôt (`DepotSemaine.etat(semaine).value.recette(numero)`
-    //  pour `destination.numero` non nul). D'ici là, toute séance lit la recette d'exemple.
-    SeanceDeRecette(RecetteExemple.recette, onRetour)
+    val numero = destination.numero
+    if (numero == null) {
+        // « Essayer la lecture à voix haute » depuis la Cuisine : la recette d'exemple.
+        SeanceDeRecette(RecetteExemple.recette, onRetour)
+        return
+    }
+    val depot = DepotLocal.de(LocalContext.current)
+    val etat by depot.etat(destination.semaine).collectAsState()
+    val recette = etat.recette(numero)
+    if (recette != null) {
+        SeanceDeRecette(recette, onRetour)
+    } else {
+        // Données effacées entre-temps : on renvoie vers la fiche, qui sait relire la page.
+        EcranPousse("Box $numero", onRetour) { marges ->
+            Column(Modifier.padding(marges).padding(16.dp)) {
+                LigneEtat(R.drawable.ic_help, "La recette de la box $numero n'est pas lue sur ce téléphone.", TonEtat.INFO) {
+                    BoutonCarnet("Ouvrir la fiche", { ouvrir(Destination.Recette(destination.semaine, numero)) }, sorte = SorteBouton.CONTOUR)
+                }
+            }
+        }
+    }
 }
 
 /**
  * La séance d'une [recette] donnée : c'est l'appelant qui la trouve (la recette d'exemple, ou
- * celle d'une box quand le dépôt sera branché).
+ * celle d'une box, lue dans le dépôt de la semaine).
  */
 @Composable
 fun SeanceDeRecette(recette: Recette, onRetour: () -> Unit) {

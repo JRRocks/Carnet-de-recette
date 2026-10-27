@@ -274,6 +274,21 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
   - Le micro n'écoute que pendant une séance, sur demande, avec un témoin visible.
 - **En attendant les segments de Cowork** (lot 3), la séance lit les **étapes de la recette**,
   une par segment : de quoi essayer la voix et les commandes dès maintenant.
+- Choix faits en codant la séance (2026-10-27) :
+  - **Minuteurs lancés à la main** (bouton ou « minuteur »), jamais tout seuls : la voix lit
+    l'étape avant que les poireaux soient dans la poêle.
+  - **Une sonnerie** marque la fin d'un minuteur, même en pause ou voix coupée : un minuteur
+    muet, c'est un plat qui brûle.
+  - **Garde-fou contre la conversation** : une commande n'est prise que si la phrase compte
+    peu de mots autour ; une négation (« ne passe pas ») annule tout.
+  - Un geste qui demande la voix (valider, relire, précédent) lève la pause.
+  - Étape en cours en 32 sp, ramenée à 24 sp au-delà de 90 caractères : une étape entière du
+    site remplirait l'écran et cacherait la suite. Les segments courts de Cowork restent en
+    32 sp.
+  - Limites connues : les minuteurs s'arrêtent si l'on quitte la séance ou si Android tue
+    l'app (ni service ni notification) ; beaucoup de téléphones bipent à chaque relance de
+    l'écoute ; « ok » ou « fait » entendus d'une télé avancent d'une étape (« précédent »
+    répare).
 
 ## 9. Mode dégradé et alerte
 

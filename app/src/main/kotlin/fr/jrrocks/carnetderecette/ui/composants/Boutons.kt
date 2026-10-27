@@ -14,8 +14,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import fr.jrrocks.carnetderecette.ui.theme.Carnet
 
 /*
@@ -36,9 +38,11 @@ fun BoutonCarnet(
 ) {
     val forme = MaterialTheme.shapes.medium
     val m = modifier.heightIn(min = 48.dp)
+    // L'icône suit la taille de police, comme le libellé : à 200 %, 20 dp paraîtraient minuscules.
+    val tailleIcone = with(LocalDensity.current) { 20.sp.toDp() }.coerceAtMost(36.dp)
     val contenu: @Composable () -> Unit = {
         if (icone != null) {
-            Icon(painterResource(icone), contentDescription = null, modifier = Modifier.size(20.dp))
+            Icon(painterResource(icone), contentDescription = null, modifier = Modifier.size(tailleIcone))
             Spacer(Modifier.width(8.dp))
         }
         Text(texte, style = MaterialTheme.typography.labelLarge)
