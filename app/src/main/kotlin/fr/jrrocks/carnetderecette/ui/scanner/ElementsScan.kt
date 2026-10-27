@@ -29,9 +29,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -117,7 +119,8 @@ private fun PanneauCamera(@DrawableRes icone: Int, texte: String, modifier: Modi
 
 /**
  * Le nombre de personnes, corrigé d'un geste : − et + de 48 dp, la valeur au milieu, 12 dp
- * d'écart. [aucune] permet de revenir à « non précisé » (fiche papier) ; `null` s'affiche « — ».
+ * d'écart ; la valeur est annoncée à TalkBack quand elle change. [aucune] permet de revenir
+ * à « non précisé » (fiche papier) ; `null` s'affiche « — ».
  */
 @Composable
 internal fun SelecteurPersonnes(
@@ -139,7 +142,11 @@ internal fun SelecteurPersonnes(
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .widthIn(min = 72.dp)
-                .clearAndSetSemantics { contentDescription = if (valeur == null) "Nombre de personnes non précisé" else "$valeur personnes" },
+                // Annoncée quand − ou + la change : le focus de TalkBack reste sur le bouton.
+                .clearAndSetSemantics {
+                    contentDescription = if (valeur == null) "Nombre de personnes non précisé" else "$valeur personnes"
+                    liveRegion = LiveRegionMode.Polite
+                },
         )
         BoutonPas(R.drawable.ic_add, "Une personne de plus", actif && (valeur ?: 0) < PERSONNES_MAX) {
             surChangement((valeur ?: 0) + 1)

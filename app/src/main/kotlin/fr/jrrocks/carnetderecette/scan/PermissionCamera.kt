@@ -39,8 +39,8 @@ class PermissionCamera(
 
 /**
  * Demande l'accès à la caméra à l'ouverture de l'écran, une seule fois (une rotation ne
- * redemande pas). Au retour des réglages Android, l'accès est relu : accordé entre-temps, la
- * caméra s'ouvre sans autre geste.
+ * redemande pas). À chaque retour au premier plan, l'accès est relu : accordé entre-temps, la
+ * caméra s'ouvre sans autre geste ; retiré, l'écran propose de l'autoriser de nouveau.
  */
 @Composable
 fun rememberPermissionCamera(): PermissionCamera {
@@ -56,8 +56,15 @@ fun rememberPermissionCamera(): PermissionCamera {
             lanceur.launch(Manifest.permission.CAMERA)
         }
     }
+    // Relue dans les deux sens : l'état restauré après la mort du processus peut dire
+    // « accordée » alors que l'accès a été retiré (réglages, « Seulement cette fois ») ; la
+    // caméra ne s'ouvrirait pas, sans un mot. Elle repasse alors à « Autoriser la caméra ».
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (accordee(contexte)) etat = EtatPermission.ACCORDEE
+        etat = when {
+            accordee(contexte) -> EtatPermission.ACCORDEE
+            etat == EtatPermission.ACCORDEE -> EtatPermission.EN_ATTENTE
+            else -> etat
+        }
     }
     return PermissionCamera(
         etat = etat,

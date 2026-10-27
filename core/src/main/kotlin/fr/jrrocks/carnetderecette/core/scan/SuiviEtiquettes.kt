@@ -25,19 +25,26 @@ data class BoxValidee(
  * - Pendant ce temps, chaque image **vote** pour le nombre de personnes qu'elle a lu. Un vote
  *   unanime est proposé tel quel ; des votes partagés ou absents marquent la box « à
  *   confirmer » plutôt que de deviner.
- * - [ScanDebouncer] empêche de revalider aussitôt la box qui reste dans le champ.
+ * - **Anti-rebond glissant** (adaptation du Carnet, à la place du verrou à durée fixe de
+ *   [ScanDebouncer]) : un numéro validé est verrouillé tant qu'il reste dans le champ. Chaque
+ *   lecture repousse le verrou, qui ne tombe qu'après [fenetreMs] sans le lire. L'étiquette
+ *   gardée en vue pendant qu'on corrige les personnes n'est donc pas revalidée (pas de « déjà
+ *   scannée » en boucle), et la même box se rescanne exprès en la sortant un instant du champ.
+ *   Un verrou à durée fixe tombait 1,5 s après la validation, étiquette toujours en vue.
+ * - [ignorer] pose le même verrou sur une box que l'utilisateur vient de retirer : elle ne
+ *   revient pas toute seule si son étiquette est encore dans le réticule.
  *
- * Non thread-safe : appelé depuis l'unique fil d'analyse de CameraX. [horloge] est injectée
- * pour les tests.
+ * [soumettre] est appelé depuis l'unique fil d'analyse de CameraX, [ignorer] et
+ * [reinitialiser] depuis le fil principal : les méthodes publiques sont synchronisées.
+ * [horloge] est injectée pour les tests.
  */
 class SuiviEtiquettes(
     private val horloge: () -> Long = System::currentTimeMillis,
     seuil: Int = SEUIL,
-    fenetreMs: Long = ScanDebouncer.DEFAULT_WINDOW_MS,
+    private val fenetreMs: Long = ScanDebouncer.DEFAULT_WINDOW_MS,
     private val ttlMs: Long = ScanConsensus.DEFAULT_TTL_MS,
 ) {
     private val consensus = ScanConsensus(threshold = seuil, ambiguityGuard = true, ttlMs = ttlMs)
-    private val debouncer = ScanDebouncer(fenetreMs)
 
     /** Les votes d'un numéro en cours de consensus ; ils expirent avec lui ([ttlMs]). */
     private class Votes(var derniereLecture: Long) {
@@ -46,16 +53,24 @@ class SuiviEtiquettes(
 
     private val votes = HashMap<Int, Votes>()
 
+    /** Les numéros verrouillés (validés ou retirés), avec l'heure de leur dernière lecture. */
+    private val verrous = HashMap<Int, Long>()
+
     /** L'avancement du consensus le plus avancé (0 à 1) : le contour du réticule se remplit d'autant. */
-    val progression: Float get() = consensus.peakProgress()
+    val progression: Float
+        @Synchronized get() = consensus.peakProgress()
 
     /** Une image de plus ; rend la box quand son numéro vient d'être confirmé, `null` sinon. */
+    @Synchronized
     fun soumettre(lecture: LectureEtiquette): BoxValidee? {
         val maintenant = horloge()
         votes.entries.removeAll { maintenant - it.value.derniereLecture >= ttlMs }
+        verrous.entries.removeAll { maintenant - it.value >= fenetreMs }
         val numero = lecture.numero
-        if (numero == null) {
-            // Une image sans numéro ne casse pas le compteur en cours, mais fait vieillir les autres.
+        if (numero == null || numero in verrous) {
+            // Un numéro verrouillé encore dans le champ : le verrou glisse, rien n'est revalidé.
+            if (numero != null) verrous[numero] = maintenant
+            // Une image sans numéro à compter ne casse pas le compteur en cours, mais fait vieillir les autres.
             consensus.submit(emptyList(), maintenant)
             return null
         }
@@ -66,7 +81,7 @@ class SuiviEtiquettes(
         val valides = consensus.submit(listOf(ConsensusCandidate(numero.toString())), maintenant)
         if (valides.isEmpty()) return null
         votes.remove(numero)
-        if (!debouncer.accept(numero.toString(), maintenant)) return null
+        verrous[numero] = maintenant
 
         val parNombre = votesDuNumero.parNombre
         val plusHaut = parNombre.values.maxOrNull()
@@ -79,11 +94,21 @@ class SuiviEtiquettes(
         )
     }
 
+    /**
+     * La box [numero] vient d'être retirée : elle n'est plus validée tant que son étiquette
+     * reste dans le champ (relue à moins de [fenetreMs] d'intervalle).
+     */
+    @Synchronized
+    fun ignorer(numero: Int) {
+        verrous[numero] = horloge()
+    }
+
     /** Repart de zéro (en ouvrant l'écran). */
+    @Synchronized
     fun reinitialiser() {
         consensus.reset()
-        debouncer.reset()
         votes.clear()
+        verrous.clear()
     }
 
     companion object {

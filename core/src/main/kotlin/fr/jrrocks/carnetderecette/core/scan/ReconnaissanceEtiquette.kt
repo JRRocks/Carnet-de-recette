@@ -22,8 +22,9 @@ data class LectureEtiquette(
  * - **Nombre de personnes** : un texte lu comparé à l'ensemble des formes connues (« 4P »,
  *   « 4 PERS. », « X4 »…) construites pour chaque nombre possible.
  *
- * Dans le doute (deux numéros de même taille, deux nombres de personnes différents), la
- * réponse est `null` : mieux vaut ne rien proposer que deviner.
+ * Dans le doute (deux numéros de même taille, un autre texte aussi grand que le numéro, deux
+ * nombres de personnes différents), la réponse est `null` : mieux vaut ne rien proposer que
+ * deviner.
  */
 object ReconnaissanceEtiquette {
 
@@ -69,6 +70,13 @@ object ReconnaissanceEtiquette {
         }
     }
 
+    /**
+     * Le numéro doit être **nettement le plus grand texte** du réticule : un autre élément lu
+     * (numéro du menu ou non) à moins de [ECART_HAUTEUR] de sa hauteur laisse un doute. Sans
+     * cette règle, quand le grand numéro est mal lu (« I7 ») ou hors du réticule, un petit
+     * nombre imprimé ailleurs sur l'étiquette (« LOT 12/10 45 ») qui serait aussi au menu
+     * deviendrait le numéro de la box.
+     */
     private fun numero(elements: List<ElementLu>, numerosDuMenu: Set<Int>): Int? {
         val parEcriture = numerosDuMenu.associateBy { it.toString() }
         // Pour chaque numéro reconnu, la plus grande hauteur à laquelle il a été lu.
@@ -80,8 +88,16 @@ object ReconnaissanceEtiquette {
         }
         val classes = hauteurs.entries.sortedByDescending { it.value }
         val premier = classes.firstOrNull() ?: return null
-        val second = classes.getOrNull(1) ?: return premier.key
-        return if (second.value >= premier.value * (1 - ECART_HAUTEUR)) null else premier.key
+        val seuil = premier.value * (1 - ECART_HAUTEUR)
+        val second = classes.getOrNull(1)
+        if (second != null && second.value >= seuil) return null
+        val ecriture = premier.key.toString()
+        // Tout autre élément lu, qui ne porte pas ce même numéro, doit rester nettement plus petit.
+        val rival = elements.any { element ->
+            val mots = mots(element.texte)
+            mots.isNotEmpty() && ecriture !in mots && element.hauteur >= seuil
+        }
+        return if (rival) null else premier.key
     }
 
     private fun personnes(elements: List<ElementLu>, personnesPossibles: Set<Int>): Int? {

@@ -92,4 +92,25 @@ class GeometrieImageTest {
         assertNull(GeometrieImage.elementLu("LOT", Zone(20f, 250f, 160f, 300f), reticule))
         assertNull(GeometrieImage.elementLu("12/10", Zone(200f, 390f, 300f, 450f), reticule))
     }
+
+    @Test
+    fun `la rotation de la photo suit le telephone, pas l ecran`() {
+        // Valeurs de Surface.ROTATION_0 (0) à ROTATION_270 (3), table de la doc CameraX.
+        listOf(0 to 0, 30 to 0, 44 to 0, 315 to 0, 359 to 0).forEach { (degres, attendue) ->
+            assertEquals("$degres°", attendue, GeometrieImage.rotationCible(degres))
+        }
+        // Côté gauche du téléphone en haut (90°) : l'écran, s'il tournait, serait en ROTATION_270.
+        listOf(45 to 3, 90 to 3, 134 to 3).forEach { (degres, attendue) ->
+            assertEquals("$degres°", attendue, GeometrieImage.rotationCible(degres))
+        }
+        listOf(135 to 2, 180 to 2, 224 to 2, 225 to 1, 270 to 1, 314 to 1).forEach { (degres, attendue) ->
+            assertEquals("$degres°", attendue, GeometrieImage.rotationCible(degres))
+        }
+    }
+
+    @Test
+    fun `une orientation inconnue garde la rotation precedente`() {
+        // OrientationEventListener.ORIENTATION_UNKNOWN : téléphone posé à plat.
+        assertNull(GeometrieImage.rotationCible(-1))
+    }
 }

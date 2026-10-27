@@ -2,6 +2,7 @@ package fr.jrrocks.carnetderecette.scan
 
 import android.util.Rational
 import android.util.Size
+import android.view.OrientationEventListener
 import android.view.Surface
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -23,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -30,6 +32,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.Executor
@@ -56,7 +60,11 @@ val RESOLUTION_ANALYSE: Size = Size(1280, 720)
  *   le réticule au même endroit dans l'image et à l'écran.
  * - [capture] (ajout du Carnet, pour la fiche papier) est liée en plus, sans recadrage :
  *   la photo garde tout le champ du capteur. [imageEntiere] montre alors l'image entière à
- *   l'écran (bandes sur les côtés) : on cadre la page sur ce qui sera photographié.
+ *   l'écran (bandes sur les côtés) : on cadre la page sur ce qui sera photographié. Sa
+ *   rotation suit l'orientation physique du téléphone, même écran verrouillé en portrait.
+ * - La caméra n'est reliée de nouveau que si ce qui compte change : la taille de l'aperçu
+ *   pour l'analyse (ViewPort), jamais pour la seule photo. [torche] est réappliquée après
+ *   chaque liaison et chaque retour au premier plan.
  *
  * [surLampe] dit, une fois la caméra ouverte, si elle a une lampe ; [surErreur] donne une
  * phrase en français, jamais le message brut d'une exception.
@@ -87,8 +95,22 @@ fun CameraPreview(
     // principal si l'écran est quitté avant l'ouverture.
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var taille by remember { mutableStateOf(IntSize.Zero) }
+    val torcheVoulue by rememberUpdatedState(torche)
+    // La rotation de la photo selon le téléphone lui-même (voir plus bas), gardée pour la
+    // liaison suivante ; -1 tant qu'inconnue. Pas un état : rien ne se recompose avec elle.
+    val rotationPhysique = remember { intArrayOf(-1) }
 
-    LaunchedEffect(analyseur, capture, taille) {
+    // La lampe s'éteint quand la caméra perd ses cas d'usage (arrière-plan, nouvelle liaison) :
+    // rallumée si elle est demandée, sans quoi le bouton la montrerait allumée sur une scène sombre.
+    fun rallumer(ouverte: Camera) {
+        if (torcheVoulue && ouverte.cameraInfo.hasFlashUnit()) ouverte.cameraControl.enableTorch(true)
+    }
+
+    // La taille ne sert qu'au ViewPort de l'analyse. Sans analyseur (fiche papier), seule
+    // compte la première mise en page : le clavier qui s'ouvre ne relie pas la caméra à
+    // chaque image de son animation.
+    val cleTaille: Any = if (analyseur != null) taille else (taille.width > 0 && taille.height > 0)
+    LaunchedEffect(analyseur, capture, cleTaille) {
         // Le ViewPort a besoin de la taille de l'aperçu : on attend la première mise en page.
         if (taille.width == 0 || taille.height == 0) return@LaunchedEffect
         val provider = try {
@@ -123,7 +145,7 @@ fun CameraPreview(
             )
         }
         if (capture != null) {
-            capture.targetRotation = rotation
+            capture.targetRotation = rotationPhysique[0].takeIf { it >= 0 } ?: rotation
             groupe.addUseCase(capture)
         }
 
@@ -132,6 +154,7 @@ fun CameraPreview(
             val ouverte = provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, groupe.build())
             camera = ouverte
             surLampe(ouverte.cameraInfo.hasFlashUnit())
+            rallumer(ouverte)
         } catch (e: Exception) {
             surErreur(CAMERA_INDISPONIBLE)
         }
@@ -140,6 +163,27 @@ fun CameraPreview(
     LaunchedEffect(camera, torche) {
         val courante = camera ?: return@LaunchedEffect
         if (courante.cameraInfo.hasFlashUnit()) courante.cameraControl.enableTorch(torche)
+    }
+
+    // ON_RESUME arrive après la réattache d'ON_START (même exécuteur de CameraX) : la caméra
+    // est de nouveau active quand la consigne de lampe repart.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { camera?.let(::rallumer) }
+
+    // Photo : la rotation suit le téléphone, pas l'écran (doc CameraX). Rotation automatique
+    // coupée, l'écran reste en portrait quand on tourne le téléphone pour cadrer une page
+    // large : sans cela, la photo, sa vignette et le texte lu partiraient couchés. L'analyse
+    // du scanner garde la rotation de l'écran, celle de l'aperçu et du réticule.
+    DisposableEffect(capture) {
+        val prise = capture ?: return@DisposableEffect onDispose {}
+        val ecoute = object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                val cible = GeometrieImage.rotationCible(orientation) ?: return
+                rotationPhysique[0] = cible
+                if (prise.targetRotation != cible) prise.targetRotation = cible
+            }
+        }
+        ecoute.enable()
+        onDispose { ecoute.disable() }
     }
 
     // Clé Unit : l'effet ne joue qu'à la sortie de l'écran ; cameraProvider est lu à ce moment-là.

@@ -95,13 +95,55 @@ class SuiviEtiquettesTest {
     }
 
     @Test
-    fun `la box restee dans le champ n est pas revalidee aussitot`() {
+    fun `la box restee dans le champ n est jamais revalidee`() {
         repeat(5) { image(207, 4) }
-        // Validée à 400 ms. Cinq nouvelles lectures (consensus atteint à 900 ms) : verrou de 1,5 s.
-        repeat(5) { assertNull(image(207, 4)) }
+        // Validée à 400 ms, puis lue sans trêve pendant 10 s : le verrou glisse avec chaque lecture.
+        repeat(100) { assertNull(image(207, 4)) }
+        // Le réticule ne se remplit pas de nouveau.
+        assertEquals(0f, suivi.progression)
+    }
 
-        // Au-delà de la fenêtre, une nouvelle validation passe (la box sera vue comme doublon).
-        maintenant = 2_000
+    @Test
+    fun `quelques images sans numero ne liberent pas le verrou`() {
+        repeat(5) { image(207, 4) }
+        repeat(30) { i -> assertNull(image(if (i % 10 < 8) null else 207, 4)) }
+        repeat(5) { assertNull(image(207, 4)) }
+    }
+
+    @Test
+    fun `apres un trou de la fenetre la meme box se revalide`() {
+        repeat(5) { image(207, 4) }
+        repeat(20) { image(207, 4) }
+        // L'étiquette sort du champ 1,5 s : la même box rescannée exprès se valide de nouveau.
+        maintenant += 1_500
+        repeat(4) { assertNull(image(207, 4)) }
+        assertEquals(207, image(207, 4)?.numero)
+    }
+
+    @Test
+    fun `une autre box se valide pendant que la premiere est verrouillee`() {
+        repeat(5) { image(207, 4) }
+        repeat(4) { image(315, 2) }
+        assertEquals(315, image(315, 2)?.numero)
+        // La première, revue aussitôt, reste verrouillée.
+        repeat(5) { assertNull(image(207, 4)) }
+    }
+
+    @Test
+    fun `une box retiree reste ignoree tant qu elle est dans le champ`() {
+        repeat(4) { image(207, 4) }
+        suivi.ignorer(207)
+        repeat(50) { assertNull(image(207, 4)) }
+
+        maintenant += 1_500
+        repeat(4) { image(207, 4) }
+        assertNotNull(image(207, 4))
+    }
+
+    @Test
+    fun `une box retiree hors du champ se rescanne apres la fenetre`() {
+        suivi.ignorer(207)
+        maintenant += 1_500
         repeat(4) { image(207, 4) }
         assertNotNull(image(207, 4))
     }

@@ -77,6 +77,21 @@ object GeometrieImage {
         )
     }
 
+    /**
+     * La rotation cible d'une photo selon l'orientation **physique** du téléphone, en degrés
+     * (`OrientationEventListener` : 0 à 359, ou -1 posé à plat) : 0 à 3 quarts de tour, les
+     * valeurs de `Surface.ROTATION_0` à `ROTATION_270`, comme dans la doc CameraX. `null` quand
+     * l'orientation est inconnue : on garde la précédente. Sert quand la rotation automatique
+     * de l'écran est coupée : l'écran reste en portrait, la page se cadre en paysage.
+     */
+    fun rotationCible(orientation: Int): Int? = when (orientation) {
+        in 45 until 135 -> 3
+        in 135 until 225 -> 2
+        in 225 until 315 -> 1
+        in 0 until 45, in 315 until 360 -> 0
+        else -> null
+    }
+
     /** 0, 90, 180 ou 270 degrés → 0 à 3 quarts de tour (les autres valeurs n'existent pas chez CameraX). */
     private fun quart(rotation: Int): Int = (((rotation / 90) % 4) + 4) % 4
 }

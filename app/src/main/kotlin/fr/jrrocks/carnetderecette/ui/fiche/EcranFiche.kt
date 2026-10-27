@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -15,6 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import fr.jrrocks.carnetderecette.scan.CameraPreview
 import fr.jrrocks.carnetderecette.scan.rememberPermissionCamera
 import fr.jrrocks.carnetderecette.ui.Destination
+import kotlinx.coroutines.flow.first
 
 /**
  * La fiche papier, reliée à son ViewModel et à la caméra : l'aperçu montre l'image entière,
@@ -27,13 +29,14 @@ fun EcranFiche(destination: Destination.Fiche, onRetour: () -> Unit, ouvrir: (De
         key = "fiche-${destination.semaine}-${destination.numero ?: "libre"}",
         factory = FicheViewModel.fabrique(destination.semaine, destination.numero),
     )
-    LaunchedEffect(vm) { vm.demarrer() }
-    val fini by vm.fini.collectAsStateWithLifecycle()
-    LaunchedEffect(fini) {
-        if (fini) {
-            vm.retourFait()
-            onRetour()
-        }
+    val retour by rememberUpdatedState(onRetour)
+    LaunchedEffect(vm) {
+        // demarrer() efface une fin restée d'une visite précédente (écran quitté pendant
+        // l'enregistrement) ; on n'attend qu'ensuite celle de cette visite.
+        vm.demarrer()
+        vm.fini.first { it }
+        vm.retourFait()
+        retour()
     }
 
     val permission = rememberPermissionCamera()

@@ -68,6 +68,32 @@ class ReconnaissanceEtiquetteTest {
     }
 
     @Test
+    fun `un petit numero du menu ne remplace pas le grand numero mal lu`() {
+        // « 207 » lu « I7 » : le « 45 » du lot, au menu, ne devient pas le numéro de la box.
+        assertNull(lire(el("I7", hauteur = 0.45f, x = 0.3f, y = 0.4f), el("45", hauteur = 0.05f, x = 0.5f, y = 0.95f)).numero)
+        // Toute l'étiquette factice, grand numéro mal lu.
+        assertNull(ReconnaissanceEtiquette.reconnaitre(etiquette.map { if (it.texte == "207") it.copy(texte = "2O7") else it }, menu).numero)
+    }
+
+    @Test
+    fun `la ligne du lot seule ne donne pas de numero`() {
+        // Le grand numéro hors du réticule : il ne reste que « LOT 12/10 45 », tout à la même taille.
+        val lecture = lire(
+            el("LOT", hauteur = 0.05f, x = 0.1f, y = 0.95f),
+            el("12/10", hauteur = 0.05f, x = 0.3f, y = 0.95f),
+            el("45", hauteur = 0.05f, x = 0.5f, y = 0.95f),
+        )
+
+        assertNull(lecture.numero)
+    }
+
+    @Test
+    fun `un autre texte presque aussi grand que le numero laisse un doute`() {
+        assertNull(lire(el("207", hauteur = 0.40f), el("Poulet", hauteur = 0.37f)).numero)
+        assertEquals(207, lire(el("207", hauteur = 0.40f), el("Poulet", hauteur = 0.35f)).numero)
+    }
+
+    @Test
     fun `le meme numero lu deux fois n est pas un doute`() {
         assertEquals(207, lire(el("207", hauteur = 0.40f), el("207", hauteur = 0.10f)).numero)
     }

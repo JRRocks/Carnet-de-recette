@@ -3,6 +3,7 @@ package fr.jrrocks.carnetderecette.ui.scanner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -55,6 +56,9 @@ sealed interface EtatMenu {
 
     /** La sonde ne trouve plus ce qu'il faut sur le site : mode dégradé (cadrage § 9). */
     data object AccesRompu : EtatMenu
+
+    /** Lu sur le site, mais le téléphone n'a pas pu l'écrire (plus de place) : il faudra réessayer. */
+    data object NonEnregistre : EtatMenu
 }
 
 /** Où en est la page de la recette d'une box. */
@@ -90,6 +94,8 @@ data class EtatScanner(
     val entreesMenu: List<EntreeMenu> = emptyList(),
     /** La liste du menu remplace le bas de l'écran (étiquette illisible). */
     val menuOuvert: Boolean = false,
+    /** Une box, une correction ou un retrait n'a pas pu être écrit sur le téléphone : la phrase à montrer. */
+    val erreur: String? = null,
 )
 
 /** Les gestes de l'écran du scanner. */
@@ -107,7 +113,10 @@ data class ActionsScanner(
     val personnes: (numero: Int, personnes: Int) -> Unit = { _, _ -> },
     val retirer: (Int) -> Unit = {},
     val relirePage: (Int) -> Unit = {},
-    /** Ouvre la fiche papier, pour la box donnée si on la connaît. */
+    /**
+     * Ouvre la fiche papier, pour la box donnée si on la connaît. Les recours l'ouvrent sans
+     * numéro : la box qu'on tient n'est pas forcément la dernière lue.
+     */
     val photographierFiche: (Int?) -> Unit = {},
 )
 
@@ -167,16 +176,21 @@ private fun Resultats(etat: EtatScanner, actions: ActionsScanner) {
     val marges = Modifier.padding(horizontal = 16.dp)
     Spacer(Modifier.height(12.dp))
     EtatDuMenu(etat.menu, actions, marges.padding(bottom = 12.dp))
+    etat.erreur?.let { LigneEtat(R.drawable.ic_error, it, TonEtat.ERREUR, marges.padding(bottom = 12.dp)) }
     val courante = etat.courante
-    if (courante != null) {
-        DernierResultat(courante, etat.doublon, actions, marges)
-    } else if (etat.menu == EtatMenu.Lu && etat.camera == EtatPermission.ACCORDEE && etat.erreurCamera == null) {
-        Text(
-            "Vise l'étiquette d'une box\u00A0: le numéro et le nombre de personnes se lisent tout seuls.",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = marges,
-        )
+    // Annoncée à TalkBack à chaque nouvelle box : on ne regarde pas forcément l'écran. La zone
+    // reste en place et seul son contenu change : une zone qui apparaît ne s'annonce pas toujours.
+    Box(marges.fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+        if (courante != null) {
+            AnnonceResultat(courante, etat.doublon, actions)
+        } else if (etat.menu == EtatMenu.Lu && etat.camera == EtatPermission.ACCORDEE && etat.erreurCamera == null) {
+            Text(
+                "Vise l'étiquette d'une box\u00A0: le numéro et le nombre de personnes se lisent tout seuls.",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
     }
+    if (courante != null) PersonnesResultat(courante, actions, marges.padding(top = 8.dp))
     Recours(etat, actions, Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
     if (etat.boxes.isNotEmpty()) {
         EnteteSection("Déjà scannées\u00A0: ${etat.boxes.size}", marges.padding(top = 8.dp, bottom = 4.dp))
@@ -202,6 +216,14 @@ private fun EtatDuMenu(menu: EtatMenu, actions: ActionsScanner, modifier: Modifi
         ) {
             BoutonCarnet("Réessayer", actions.relireMenu, sorte = SorteBouton.CONTOUR, icone = R.drawable.ic_refresh)
         }
+        EtatMenu.NonEnregistre -> LigneEtat(
+            R.drawable.ic_error,
+            "Le menu de la semaine n'a pas pu être enregistré\u00A0: le téléphone manque peut-être de place. Libère-en, puis réessaie.",
+            TonEtat.ERREUR,
+            modifier,
+        ) {
+            BoutonCarnet("Réessayer", actions.relireMenu, sorte = SorteBouton.CONTOUR, icone = R.drawable.ic_refresh)
+        }
         EtatMenu.AccesRompu -> LigneEtat(
             R.drawable.ic_error,
             "Accès HelloFresh rompu\u00A0: passe en mode dégradé (photo de la fiche).",
@@ -214,53 +236,57 @@ private fun EtatDuMenu(menu: EtatMenu, actions: ActionsScanner, modifier: Modifi
     }
 }
 
-/** Le dernier résultat, en grand : « 207 », le titre de la recette, le nombre de personnes. */
+/**
+ * Le dernier résultat, en grand : « 207 », le titre de la recette, ce qui se passe pour sa
+ * page. Posé dans la zone annoncée de [Resultats].
+ */
+@Composable
+private fun AnnonceResultat(box: BoxVue, doublon: Boolean, actions: ActionsScanner) {
+    // Sous le titre, ce qui se passe pour cette box : une rangée de moins dans le bas de l'écran.
+    val details = @Composable { mod: Modifier ->
+        Column(mod, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                box.titre ?: "Recette du menu de la semaine",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (doublon) Indication(R.drawable.ic_check_circle, "Déjà scannée cette semaine.")
+            EtatDeLaPage(box, actions)
+        }
+    }
+    val numero = @Composable { Text(box.numero.toString(), style = MaterialTheme.typography.displaySmall.chiffres()) }
+    if (LocalDensity.current.fontScale >= 1.5f) {
+        // À grande police, le numéro passe au-dessus : le titre et l'état gardent toute la largeur.
+        Column {
+            numero()
+            details(Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(verticalAlignment = Alignment.Top) {
+            numero()
+            Spacer(Modifier.width(16.dp))
+            details(Modifier.weight(1f).padding(top = 4.dp))
+        }
+    }
+}
+
+/** Le nombre de personnes du dernier résultat, corrigé d'un geste, et son doute éventuel. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DernierResultat(box: BoxVue, doublon: Boolean, actions: ActionsScanner, modifier: Modifier) {
-    Column(modifier.fillMaxWidth()) {
-        // Sous le titre, ce qui se passe pour cette box : une rangée de moins dans le bas de l'écran.
-        val details = @Composable { mod: Modifier ->
-            Column(mod, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    box.titre ?: "Recette du menu de la semaine",
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (doublon) Indication(R.drawable.ic_check_circle, "Déjà scannée cette semaine.")
-                EtatDeLaPage(box, actions)
-            }
-        }
-        // Annoncé à TalkBack à chaque nouvelle box : on ne regarde pas forcément l'écran.
-        val annonce = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
-        val numero = @Composable { Text(box.numero.toString(), style = MaterialTheme.typography.displaySmall.chiffres()) }
-        if (LocalDensity.current.fontScale >= 1.5f) {
-            // À grande police, le numéro passe au-dessus : le titre et l'état gardent toute la largeur.
-            Column(annonce) {
-                numero()
-                details(Modifier.fillMaxWidth())
-            }
-        } else {
-            Row(annonce, verticalAlignment = Alignment.Top) {
-                numero()
-                Spacer(Modifier.width(16.dp))
-                details(Modifier.weight(1f).padding(top = 4.dp))
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        // À grande police, « à confirmer » passe sous le sélecteur plutôt que de le serrer.
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SelecteurPersonnes(
-                box.personnes,
-                { it?.let { n -> actions.personnes(box.numero, n) } },
-                Modifier.align(Alignment.CenterVertically),
-            )
-            if (box.aConfirmer) Indication(R.drawable.ic_help, "à confirmer", Modifier.align(Alignment.CenterVertically))
-        }
+private fun PersonnesResultat(box: BoxVue, actions: ActionsScanner, modifier: Modifier) {
+    // À grande police, « à confirmer » passe sous le sélecteur plutôt que de le serrer.
+    FlowRow(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SelecteurPersonnes(
+            box.personnes,
+            { it?.let { n -> actions.personnes(box.numero, n) } },
+            Modifier.align(Alignment.CenterVertically),
+        )
+        if (box.aConfirmer) Indication(R.drawable.ic_help, "à confirmer", Modifier.align(Alignment.CenterVertically))
     }
 }
 
@@ -308,11 +334,13 @@ private fun Recours(etat: EtatScanner, actions: ActionsScanner, modifier: Modifi
                 icone = R.drawable.ic_list_alt,
             )
         }
-        // Accès rompu : la ligne d'erreur porte déjà ce geste, en bouton plein.
+        // Accès rompu : la ligne d'erreur porte déjà ce geste, en bouton plein. Sans numéro :
+        // la box qu'on tient, illisible, n'est pas forcément la dernière lue ; la fiche
+        // propose le menu, box déjà scannées en tête.
         if (etat.menu != EtatMenu.AccesRompu) {
             BoutonCarnet(
                 "Photographier la fiche",
-                { actions.photographierFiche(etat.courante?.numero) },
+                { actions.photographierFiche(null) },
                 sorte = SorteBouton.TEXTE,
                 icone = R.drawable.ic_photo_camera,
             )

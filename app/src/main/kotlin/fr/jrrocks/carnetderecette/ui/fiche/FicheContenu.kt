@@ -33,6 +33,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -74,6 +76,8 @@ data class EtatFiche(
     val numero: Int? = null,
     /** Le titre annoncé par le menu pour [numero], s'il est lu. */
     val titre: String? = null,
+    /** Une fiche est déjà enregistrée pour [numero] : la nouvelle la remplacera. */
+    val dejaPrise: Boolean = false,
     /** Le numéro tapé au clavier, tel quel. */
     val saisie: String = "",
     val entreesMenu: List<EntreeMenu> = emptyList(),
@@ -230,6 +234,26 @@ private fun LaBox(etat: EtatFiche, actions: ActionsFiche, modifier: Modifier) {
             Spacer(Modifier.width(12.dp))
             etat.titre?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            }
+        }
+        // Un numéro tapé ou choisi qui a déjà sa fiche : la remplacer se fait en connaissance de cause.
+        if (etat.dejaPrise && etat.numero != null) {
+            Row(
+                Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+                verticalAlignment = Alignment.Top,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_info),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp).size(20.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Remplace la fiche déjà prise pour la ${etat.numero}.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         if (etat.entreesMenu.isNotEmpty()) {

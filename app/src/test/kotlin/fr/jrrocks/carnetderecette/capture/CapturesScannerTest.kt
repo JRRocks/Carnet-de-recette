@@ -15,7 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -32,6 +37,7 @@ import fr.jrrocks.carnetderecette.ui.scanner.EtatMenu
 import fr.jrrocks.carnetderecette.ui.scanner.EtatPage
 import fr.jrrocks.carnetderecette.ui.scanner.EtatScanner
 import fr.jrrocks.carnetderecette.ui.scanner.ScannerContenu
+import fr.jrrocks.carnetderecette.ui.scanner.ScannerViewModel
 import fr.jrrocks.carnetderecette.ui.theme.ThemeCarnet
 import java.io.File
 import org.junit.Assert.assertEquals
@@ -70,6 +76,9 @@ class CapturesScannerTest {
     private var sombre by mutableStateOf(false)
     private var police by mutableFloatStateOf(1f)
     private val gestes = mutableListOf<String>()
+
+    /** Une zone que TalkBack annonce quand son texte change. */
+    private val annoncee = SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite)
 
     private fun capturer(nom: String) {
         compose.waitForIdle()
@@ -116,7 +125,8 @@ class CapturesScannerTest {
         capturer("71-scanner-lecture-menu")
 
         etat = etat.copy(menu = EtatMenu.Lu, entreesMenu = menu)
-        compose.onNodeWithText("Vise l'étiquette", substring = true).assertExists()
+        // La zone annoncée est déjà là avant la première box : seul son texte changera.
+        compose.onNode(hasText("Vise l'étiquette", substring = true) and annoncee).assertExists()
         compose.onNodeWithContentDescription("Allumer la lampe").assertExists()
         capturer("72-scanner-pret")
 
@@ -125,16 +135,26 @@ class CapturesScannerTest {
         compose.onAllNodesWithText("Poulet fictif croustillant").assertCountEquals(2)
         compose.onNodeWithText("Déjà scannées\u00A0: 2").assertExists()
         compose.onNodeWithText("Recette lue").assertExists()
+        compose.onNode(hasText("207") and hasText("Poulet fictif croustillant") and annoncee).assertExists()
+        // Le nombre de personnes est annoncé quand − ou + le change.
+        compose.onNodeWithContentDescription("4 personnes").assert(annoncee)
         capturer("73-scanner-box-validee")
 
         compose.onNodeWithContentDescription("Une personne de plus").performClick()
         compose.onNodeWithContentDescription("Retirer la box 315").performScrollTo().performClick()
-        assertEquals(listOf("personnes 207 5", "retirer 315"), gestes)
+        // La fiche papier des recours ne reprend pas la dernière box lue : la box en main est illisible.
+        compose.onNodeWithText("Photographier la fiche").performScrollTo().performClick()
+        assertEquals(listOf("personnes 207 5", "retirer 315", "fiche null"), gestes)
 
         etat = etat.copy(courante = curry, boxes = listOf(pates, poulet, curry), progression = 0f)
         compose.onAllNodesWithText("à confirmer").assertCountEquals(2)
         compose.onNodeWithText("Lecture de la recette…").assertExists()
         capturer("74-scanner-a-confirmer")
+
+        // Téléphone plein : l'écriture échoue, l'écran le dit au lieu de planter.
+        etat = etat.copy(erreur = ScannerViewModel.ERREUR_ECRITURE)
+        compose.onNodeWithText(ScannerViewModel.ERREUR_ECRITURE).assertExists()
+        capturer("74b-scanner-erreur-ecriture")
 
         etat = EtatScanner(camera = EtatPermission.ACCORDEE, lampeDisponible = true, menu = EtatMenu.HorsLigne)
         compose.onNodeWithText("Pas de réseau\u00A0: le menu de la semaine n'est pas lu.").assertExists()
@@ -144,6 +164,11 @@ class CapturesScannerTest {
         etat = etat.copy(menu = EtatMenu.AccesRompu)
         compose.onNodeWithText("Accès HelloFresh rompu", substring = true).assertExists()
         capturer("76-scanner-acces-rompu")
+
+        etat = etat.copy(menu = EtatMenu.NonEnregistre)
+        compose.onNodeWithText("Le menu de la semaine n'a pas pu être enregistré", substring = true).assertExists()
+        compose.onNodeWithText("Réessayer").assertExists()
+        capturer("76b-scanner-menu-non-enregistre")
 
         etat = EtatScanner(camera = EtatPermission.REFUSEE, menu = EtatMenu.Lu, entreesMenu = menu, boxes = listOf(pates))
         compose.onNodeWithText("Ouvrir les réglages").assertExists()

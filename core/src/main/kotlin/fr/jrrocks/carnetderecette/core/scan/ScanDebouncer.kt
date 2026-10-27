@@ -11,6 +11,11 @@ package fr.jrrocks.carnetderecette.core.scan
  * Il ne remplace pas le dédoublonnage : il évite le bruit (un « déjà scannée » en continu),
  * la liste des box tranche.
  *
+ * Dans le Carnet, [SuiviEtiquettes] ne s'en sert plus : sa fenêtre part de la validation et
+ * tombe au bout de [windowMs] même si l'étiquette est restée dans le champ. Le suivi garde
+ * à la place un verrou **glissant**, repoussé à chaque lecture ; seule [DEFAULT_WINDOW_MS]
+ * est reprise. Ce filtre reste tel que le moteur le livre.
+ *
  * Non thread-safe : appelé depuis l'unique fil d'analyse de CameraX.
  */
 class ScanDebouncer(

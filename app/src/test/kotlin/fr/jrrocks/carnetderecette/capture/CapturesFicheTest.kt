@@ -138,6 +138,22 @@ class CapturesFicheTest {
         compose.onNodeWithText("Choisis la recette de la fiche").assertExists()
         capturer("85-fiche-menu-ouvert")
 
+        // Numéro tapé qui a déjà sa fiche : le remplacement est dit avant d'enregistrer.
+        etat = EtatFiche(
+            camera = EtatPermission.ACCORDEE,
+            saisie = "315",
+            numero = 315,
+            titre = "Pâtes d'essai à la tomate",
+            dejaPrise = true,
+            entreesMenu = menu,
+            recto = PageVue(9, pageDessinee()),
+        )
+        compose.onNodeWithText("Remplace la fiche déjà prise pour la 315.").assertExists()
+        capturer("85b-fiche-deja-prise")
+        // Venu du scanner, le numéro donné ne le dit pas : refaire la fiche de la box est voulu.
+        etat = etat.copy(numeroDonne = true)
+        compose.onNodeWithText("Remplace la fiche déjà prise pour la 315.").assertDoesNotExist()
+
         etat = EtatFiche(camera = EtatPermission.REFUSEE, saisie = "315", numero = 315, titre = "Pâtes d'essai à la tomate", entreesMenu = menu)
         compose.onNodeWithText("Ouvrir les réglages").assertExists()
         capturer("86-fiche-permission-refusee")
