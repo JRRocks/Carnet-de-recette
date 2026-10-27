@@ -1,10 +1,14 @@
 package fr.jrrocks.carnetderecette.ui.seance
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
+import android.os.PowerManager
 import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
@@ -47,6 +51,9 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
     private var entendu: Entendu? = null
     private var auPremierPlan = true
 
+    /** La fin de la recette a fermé le micro : l'écran de fin le dit. */
+    private var microCoupeEnFin = false
+
     /** Une phrase demandée avant que la voix soit prête : dite dès qu'elle l'est. */
     private var enAttenteDeVoix: Effet.Dire? = null
     private var tic: Job? = null
@@ -55,10 +62,16 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
         private set
 
     private val voix = Voix(application, this)
-    private val sonnerie = Sonnerie()
+    private val sonnerie = Sonnerie(application)
 
     /** Créée au premier appui sur le micro : rien n'écoute tant qu'on ne l'a pas demandé. */
     private var ecoute: Ecoute? = null
+
+    /**
+     * Garde le processeur éveillé tant qu'un minuteur tourne, écran éteint ou app en arrière-plan :
+     * sans lui, le téléphone s'endort et la sonnerie ne part qu'à son réveil. Créé au premier minuteur.
+     */
+    private var eveil: PowerManager.WakeLock? = null
 
     init {
         executer(lecteur.demarrer())
@@ -92,6 +105,7 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
 
     /** La permission du micro est accordée. */
     fun ouvrirMicro() {
+        microCoupeEnFin = false
         val e = ecoute ?: Ecoute(getApplication(), this).also { ecoute = it }
         // Si la voix parle déjà, le micro attend qu'elle ait fini.
         if (voix.parle) e.suspendre()
@@ -109,10 +123,15 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
         publier()
     }
 
-    /** Retour au premier plan, peut-être depuis l'installation d'une voix française. */
+    /**
+     * Retour au premier plan, peut-être depuis l'installation d'une voix française, ou depuis les
+     * réglages où l'on vient d'autoriser le micro : Android ne relance pas l'app pour autant, et
+     * l'écoute qu'on avait demandée s'ouvre alors toute seule.
+     */
     fun auRetour() {
         auPremierPlan = true
         if (etatVoix == EtatVoix.LANGUE_ABSENTE || etatVoix == EtatVoix.INDISPONIBLE) voix.reessayer()
+        if (micro == EtatEcoute.PermissionRequise && micAutorise()) ouvrirMicro()
         reprendreEcoute()
     }
 
@@ -122,10 +141,15 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
         ecoute?.suspendre()
     }
 
+    /** Un geste : la sonnerie en cours se tait (on l'a entendue), puis le lecteur agit. */
     private fun agir(effets: List<Effet>) {
+        sonnerie.arreter()
         executer(effets)
         publier()
     }
+
+    private fun micAutorise() =
+        ContextCompat.checkSelfPermission(getApplication(), Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
     // ── Exécution des effets ────────────────────────────────────────────────────
 
@@ -140,14 +164,27 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
                 }
                 is Effet.LancerMinuteur -> {
                     minuteurs.lancer(effet.segmentId, effet.secondes, maintenant())
+                    tenirEveille()
                     faireTourner()
                 }
                 is Effet.AnnulerMinuteur -> minuteurs.annuler(effet.segmentId)
-                is Effet.Sonner -> sonnerie.sonner()
-                // L'écran lit la fin dans l'état du lecteur.
-                Effet.Terminee -> Unit
+                is Effet.Sonner -> sonnerie.sonner(salvesDeSonnerie(effets, voixPeutParler()))
+                // L'écran lit la fin dans l'état du lecteur ; le micro, lui, se ferme.
+                Effet.Terminee -> couperMicroEnFin()
             }
         }
+    }
+
+    private fun voixPeutParler() = !voixCoupee && (etatVoix == EtatVoix.PRETE || etatVoix == EtatVoix.PREPARATION)
+
+    /**
+     * La recette est finie : le téléphone posé pendant le repas n'écoute plus la table, et
+     * l'écran de fin le dit. On le rouvre d'un geste pour revenir à une étape.
+     */
+    private fun couperMicroEnFin() {
+        if (micro != EtatEcoute.Ecoute) return
+        fermerMicro()
+        microCoupeEnFin = true
     }
 
     private fun parler(dire: Effet.Dire) {
@@ -176,13 +213,35 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
     private fun faireTourner() {
         if (tic?.isActive == true) return
         tic = viewModelScope.launch {
-            while (minuteurs.tous().isNotEmpty()) {
-                val maintenant = maintenant()
-                delay(minuteurs.tous().values.minOf { fin -> attenteJusquA(fin - maintenant) })
-                for (id in minuteurs.expires(maintenant())) executer(lecteur.minuteurFini(id))
-                publier()
+            try {
+                while (minuteurs.tous().isNotEmpty()) {
+                    val maintenant = maintenant()
+                    delay(minuteurs.tous().values.minOf { fin -> attenteJusquA(fin - maintenant) })
+                    for (id in minuteurs.expires(maintenant())) executer(lecteur.minuteurFini(id))
+                    publier()
+                }
+            } finally {
+                relacherEveil()
             }
         }
+    }
+
+    /**
+     * Le processeur reste éveillé jusqu'à la fin du minuteur le plus lointain, plus une marge :
+     * l'attente de la boucle ([delay]) ne compte pas le temps où le téléphone dort. Borné, le
+     * verrou se relâche de lui-même si la boucle ne le fait pas.
+     */
+    private fun tenirEveille() {
+        val duree = dureeDEveil(minuteurs.tous().values, maintenant()) ?: return
+        val verrou = eveil ?: getApplication<Application>().getSystemService(PowerManager::class.java)
+            ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "carnetderecette:minuteurs")
+            ?.apply { setReferenceCounted(false) }
+            ?.also { eveil = it }
+        verrou?.acquire(duree)
+    }
+
+    private fun relacherEveil() {
+        eveil?.takeIf { it.isHeld }?.release()
     }
 
     private fun attenteJusquA(reste: Long): Long = if (reste <= 0) 0 else (reste - 1) % 1_000 + 1
@@ -204,6 +263,7 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
             voixCoupee = voixCoupee,
             micro = micro,
             entendu = entendu,
+            microCoupeEnFin = microCoupeEnFin,
         )
     }
 
@@ -259,8 +319,27 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
         voix.liberer()
         ecoute?.liberer()
         sonnerie.liberer()
+        relacherEveil()
     }
 }
+
+/** Au-delà de la fin du dernier minuteur : le temps que la boucle le voie finir et lance la sonnerie. */
+private const val MARGE_EVEIL_MS = 15_000L
+
+/**
+ * Combien de temps garder le téléphone éveillé, en millisecondes, pour des minuteurs qui
+ * finissent aux instants [fins] : jusqu'au plus lointain, plus une marge ; `null` s'il n'y en a pas.
+ */
+internal fun dureeDEveil(fins: Collection<Long>, maintenant: Long): Long? =
+    fins.maxOrNull()?.let { (it - maintenant).coerceAtLeast(0) + MARGE_EVEIL_MS }
+
+/**
+ * Combien de salves pour la fin d'un minuteur, d'après les [effets] du même instant : une seule
+ * quand la voix enchaîne sur l'étape suivante (on l'entend aussi, et la sonnerie ne doit pas la
+ * couvrir), une sonnerie longue sinon (minuteur d'une étape déjà passée, pause, voix coupée).
+ */
+internal fun salvesDeSonnerie(effets: List<Effet>, voixPeutParler: Boolean): Int =
+    if (voixPeutParler && effets.any { it is Effet.Dire }) Sonnerie.SALVES_AVANT_LA_VOIX else Sonnerie.SALVES_SEULE
 
 /**
  * Le magasin du [SeanceViewModel], gardé par l'Activity : il survit à une rotation, et l'écran

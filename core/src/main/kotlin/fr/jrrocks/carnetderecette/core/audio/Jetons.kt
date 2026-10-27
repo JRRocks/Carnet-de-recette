@@ -14,9 +14,15 @@ internal data class Jeton(val texte: String, val sorte: SorteJeton) {
     val estApostrophe: Boolean get() = sorte == SorteJeton.SIGNE && (texte == "'" || texte == "’")
 }
 
+/**
+ * Les chiffres de 0 à 9 seulement : un chiffre d'une autre écriture (pleine chasse, arabe,
+ * devanagari) est un signe, gardé tel quel, jamais lu comme un nombre.
+ */
+private fun Char.estChiffre(): Boolean = this in '0'..'9'
+
 private fun sorteDe(c: Char): SorteJeton = when {
     c.isLetter() -> SorteJeton.LETTRES
-    c.isDigit() -> SorteJeton.CHIFFRES
+    c.estChiffre() -> SorteJeton.CHIFFRES
     c.isWhitespace() -> SorteJeton.BLANC
     else -> SorteJeton.SIGNE
 }
@@ -24,6 +30,8 @@ private fun sorteDe(c: Char): SorteJeton = when {
 /**
  * Lettres, chiffres et blancs se groupent en suites ; chaque signe est un jeton à lui seul.
  * Un nombre décimal (« 1,5 », « 0.5 ») reste un seul jeton : sa virgule n'est pas une pause.
+ * Un seul séparateur par nombre : « 1,2,3 » donne « 1,2 », « , » et « 3 », jamais un jeton
+ * qu'on ne saurait pas lire.
  */
 internal fun decouper(texte: String): List<Jeton> {
     val jetons = ArrayList<Jeton>()
@@ -33,9 +41,9 @@ internal fun decouper(texte: String): List<Jeton> {
         var fin = debut + 1
         if (sorte != SorteJeton.SIGNE) {
             while (fin < texte.length && sorteDe(texte[fin]) == sorte) fin++
-            while (sorte == SorteJeton.CHIFFRES && fin + 1 < texte.length && texte[fin] in ",." && texte[fin + 1].isDigit()) {
+            if (sorte == SorteJeton.CHIFFRES && fin + 1 < texte.length && texte[fin] in ",." && texte[fin + 1].estChiffre()) {
                 fin++
-                while (fin < texte.length && texte[fin].isDigit()) fin++
+                while (fin < texte.length && texte[fin].estChiffre()) fin++
             }
         }
         jetons += Jeton(texte.substring(debut, fin), sorte)
@@ -44,5 +52,9 @@ internal fun decouper(texte: String): List<Jeton> {
     return jetons
 }
 
-/** La valeur d'un jeton de chiffres (« 1,5 » → 1.5). */
-internal val Jeton.valeur: Double get() = texte.replace(',', '.').toDouble()
+/**
+ * La valeur d'un jeton de chiffres (« 1,5 » → 1.5) ; `null` si elle ne se lit pas. Le découpage
+ * ne produit que des nombres lisibles, mais un texte d'étape ne doit jamais faire planter la
+ * séance : un `null` laisse le jeton tel quel.
+ */
+internal val Jeton.valeur: Double? get() = texte.replace(',', '.').toDoubleOrNull()

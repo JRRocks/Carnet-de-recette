@@ -2,7 +2,9 @@ package fr.jrrocks.carnetderecette.ui.seance
 
 import fr.jrrocks.carnetderecette.audio.EtatEcoute
 import fr.jrrocks.carnetderecette.audio.EtatVoix
+import fr.jrrocks.carnetderecette.audio.Sonnerie
 import fr.jrrocks.carnetderecette.core.audio.CommandeVocale
+import fr.jrrocks.carnetderecette.core.audio.Effet
 import fr.jrrocks.carnetderecette.core.audio.LecteurSegments
 import fr.jrrocks.carnetderecette.core.audio.SegmentsDeRecette
 import fr.jrrocks.carnetderecette.core.recette.RecetteExemple
@@ -18,15 +20,21 @@ class EtatSeanceTest {
     private val lecteur = LecteurSegments(SegmentsDeRecette.de(recette)).apply { demarrer() }
     private val textes = recette.etapes.associate { SegmentsDeRecette.idDe(it) to it.texte }
 
-    private fun etat(restants: Map<String, Int> = emptyMap(), entendu: Entendu? = null) = etatSeance(
+    private fun etat(
+        restants: Map<String, Int> = emptyMap(),
+        entendu: Entendu? = null,
+        micro: EtatEcoute = EtatEcoute.Arretee,
+        microCoupeEnFin: Boolean = false,
+    ) = etatSeance(
         titre = recette.titre,
         lecteur = lecteur.etat,
         textes = textes,
         restants = restants,
         voix = EtatVoix.PRETE,
         voixCoupee = false,
-        micro = EtatEcoute.Arretee,
+        micro = micro,
         entendu = entendu,
+        microCoupeEnFin = microCoupeEnFin,
     )
 
     @Test
@@ -130,6 +138,36 @@ class EtatSeanceTest {
         assertTrue(e.suivants.isEmpty())
         assertEquals(0, e.restants)
         assertEquals("e6", e.precedent?.id)
+        assertFalse(e.microCoupeEnFin)
+    }
+
+    @Test
+    fun `le micro coupe par la fin ne se dit qu'a la fin, micro ferme`() {
+        assertFalse("pas encore la fin", etat(microCoupeEnFin = true).microCoupeEnFin)
+        repeat(6) { lecteur.valider() }
+        assertTrue(etat(microCoupeEnFin = true).microCoupeEnFin)
+        assertFalse("rouvert à la main", etat(micro = EtatEcoute.Ecoute, microCoupeEnFin = true).microCoupeEnFin)
+        lecteur.precedent()
+        assertFalse("revenu à une étape", etat(microCoupeEnFin = true).microCoupeEnFin)
+    }
+
+    @Test
+    fun `le telephone reste eveille jusqu'au dernier minuteur, plus une marge`() {
+        assertNull(dureeDEveil(emptyList(), 1_000))
+        assertEquals(300_000L + 15_000, dureeDEveil(listOf(61_000L, 301_000L), 1_000))
+        // Un minuteur déjà fini que la boucle n'a pas encore vu : la marge seule.
+        assertEquals(15_000L, dureeDEveil(listOf(500L), 1_000))
+    }
+
+    @Test
+    fun `la sonnerie est longue quand elle est seule, breve quand la voix enchaine`() {
+        val seule = listOf<Effet>(Effet.Sonner("e2"))
+        val avecLaVoix = listOf(Effet.Sonner("e2"), Effet.Dire("e3", "Étape 3."))
+        assertEquals(Sonnerie.SALVES_SEULE, salvesDeSonnerie(seule, voixPeutParler = true))
+        assertEquals(Sonnerie.SALVES_AVANT_LA_VOIX, salvesDeSonnerie(avecLaVoix, voixPeutParler = true))
+        // Voix coupée ou absente : l'étape suivante s'affiche en silence, la sonnerie dit tout.
+        assertEquals(Sonnerie.SALVES_SEULE, salvesDeSonnerie(avecLaVoix, voixPeutParler = false))
+        assertTrue(Sonnerie.SALVES_SEULE * Sonnerie.PERIODE_MS >= 5_000)
     }
 
     @Test

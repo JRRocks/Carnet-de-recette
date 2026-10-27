@@ -82,7 +82,7 @@ class Ecoute(contexte: Context, private val suivi: Suivi) {
 
     fun demarrer() {
         if (liberee || etat == EtatEcoute.Ecoute) return
-        if (ContextCompat.checkSelfPermission(contexte, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (!micAutorise()) {
             etat = EtatEcoute.PermissionRequise
             return
         }
@@ -123,6 +123,9 @@ class Ecoute(contexte: Context, private val suivi: Suivi) {
         reconnaisseur?.destroy()
         reconnaisseur = null
     }
+
+    private fun micAutorise() =
+        ContextCompat.checkSelfPermission(contexte, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
     private fun creer(): SpeechRecognizer? {
         val r = when {
@@ -178,11 +181,23 @@ class Ecoute(contexte: Context, private val suivi: Suivi) {
             // Un `cancel()` de notre part (suspendre, arrêter) finit souvent en erreur : sans objet.
             if (liberee || suspendue || etat != EtatEcoute.Ecoute) return
             when (code) {
-                SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> relancer(PAUSE_APRES_SILENCE)
-                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
-                    principal.removeCallbacks(relance)
-                    etat = EtatEcoute.PermissionRequise
+                SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
+                    // Un silence : le cycle d'écoute s'est déroulé normalement, ce n'est pas une boucle d'échecs.
+                    erreursDeSuite = 0
+                    relancer(PAUSE_APRES_SILENCE)
                 }
+                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
+                    if (micAutorise()) {
+                        // Carnet a le micro : c'est le service de reconnaissance (souvent l'app Google)
+                        // qui ne l'a pas. Renvoyer vers les réglages de Carnet ferait tourner en rond.
+                        echouer(
+                            "La saisie vocale du téléphone n'a pas accès au micro. Autorise le micro à l'app de " +
+                                "saisie vocale (souvent Google) dans les réglages du téléphone, puis réessaie.",
+                        )
+                    } else {
+                        principal.removeCallbacks(relance)
+                        etat = EtatEcoute.PermissionRequise
+                    }
                 SpeechRecognizer.ERROR_AUDIO ->
                     echouer("Le micro ne répond pas. Une autre app l'utilise peut-être\u00A0: ferme-la, puis réessaie.")
                 SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_SERVER ->

@@ -61,8 +61,10 @@ object TexteOral {
 
     /** Chaque écriture connue, découpée en jetons comme le texte (blancs ôtés), et son unité. */
     private val ECRITURES: List<Pair<List<String>, Unite>> = listOf(
-        listOf("cc", "càc", "c. à c.", "c.à.c.", "c. à c", "c.c.") to CUILLERE_CAFE,
-        listOf("cs", "càs", "c. à s.", "c.à.s.", "c. à s", "c.s.") to CUILLERE_SOUPE,
+        // Les formes demi-abrégées (« c. à café », « c à s ») aussi : sans elles, « ½ c. à café »
+        // se lirait « un demi-c. à café ».
+        listOf("cc", "càc", "c. à c.", "c.à.c.", "c. à c", "c.c.", "c. à café", "c à café", "c à c") to CUILLERE_CAFE,
+        listOf("cs", "càs", "c. à s.", "c.à.s.", "c. à s", "c.s.", "c. à soupe", "c à soupe", "c à s") to CUILLERE_SOUPE,
         listOf("env.", "env") to Unite("environ", mesure = false),
         // Après un nombre seulement : « n°3 » est un numéro.
         listOf("°c", "°", "ºc", "º") to Unite("degré", "degrés", apresNombre = true),
@@ -163,6 +165,7 @@ object TexteOral {
             val fraction = fractionA(jetons, i)
             val fois = foisA(jetons, i)
             val ecriture = ecritureA(jetons, i)
+            val valeur = jeton.takeIf { it.sorte == SorteJeton.CHIFFRES }?.valeur
             when {
                 fraction != null -> {
                     sortie += Morceau.Fractionnaire(fraction.second, fraction.first)
@@ -176,8 +179,9 @@ object TexteOral {
                     sortie += Morceau.Abrege(jetons.subList(i, ecriture.second).joinToString("") { it.texte }, ecriture.first)
                     i = ecriture.second
                 }
-                jeton.sorte == SorteJeton.CHIFFRES -> {
-                    sortie += Morceau.Nombre(jeton.texte, jeton.valeur)
+                // Un nombre illisible reste tel quel (dernière branche), sans planter la séance.
+                valeur != null -> {
+                    sortie += Morceau.Nombre(jeton.texte, valeur)
                     // « 12-14 » est un intervalle, pas une soustraction : « 12 à 14 ».
                     val tiret = prochainNonBlanc(jetons, i + 1)
                     val second = prochainNonBlanc(jetons, tiret + 1)
@@ -232,7 +236,8 @@ object TexteOral {
         val apres = jetons.getOrNull(i + 2)
         val debutDeMot = avant == null || avant.sorte == SorteJeton.BLANC || avant.texte == "("
         val finDeMot = apres == null || apres.sorte == SorteJeton.BLANC || (apres.sorte == SorteJeton.SIGNE && apres.texte != "/")
-        return nombre.texte.toInt().takeIf { debutDeMot && finDeMot && it in 1..EN_LETTRES.lastIndex }
+        // « x99999999999 » dépasse un Int : ce n'est pas un « fois », et surtout pas un plantage.
+        return nombre.texte.toIntOrNull()?.takeIf { debutDeMot && finDeMot && it in 1..EN_LETTRES.lastIndex }
     }
 
     /** L'écriture connue qui commence en [i] (la plus longue), et la fin de ses jetons. */

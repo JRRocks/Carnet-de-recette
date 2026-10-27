@@ -58,13 +58,29 @@ class ReconnaissanceCommandesTest {
 
     @Test
     fun `a longueur egale, la premiere dite`() {
-        verifier(PAUSE, "stop suivant")
-        verifier(SUIVANT, "suivant stop")
+        verifier(REPETER, "répète suivant")
+        verifier(SUIVANT, "suivant répète")
+    }
+
+    @Test
+    fun `deux commandes qui se contredisent, la prudente l'emporte`() {
+        verifier(PAUSE, "ok attends", "attends ok", "stop suivant", "suivant stop", "silence répète")
+        verifier(ARRETER, "ok coupe le micro")
+        // Ni « pause » ni « arrête d'écouter » : la plus longue, comme avant.
+        verifier(REPRENDRE, "ok vas-y")
+        // Trop de mots autour de la prudente : rien, plutôt qu'avancer.
+        verifier(null, "d'accord mais attends", "d'accord stop", "c'est fait stop")
     }
 
     @Test
     fun `une negation juste avant annule la commande`() {
         verifier(null, "c'est pas fait", "pas fait", "ce n'est pas fait", "pas encore", "ne continue pas", "pas suivant", "jamais fait")
+    }
+
+    @Test
+    fun `une negation juste apres annule aussi la commande`() {
+        verifier(null, "continue pas", "répète pas", "attends pas", "suivant pas", "c'est fait pas", "vas-y jamais")
+        assertNull(entendu("continue pas", "continue"))
     }
 
     @Test

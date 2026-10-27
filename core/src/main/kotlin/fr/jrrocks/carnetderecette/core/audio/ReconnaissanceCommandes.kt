@@ -26,9 +26,12 @@ enum class CommandeVocale(val libelle: String) {
  * lues dans l'ordre : la première qui donne une commande gagne. Dans une même alternative, la
  * phrase la plus longue l'emporte (« étape suivante » plutôt que « suivante »).
  *
- * Deux garde-fous, parce qu'on parle aussi d'autre chose en cuisine :
- * - une négation juste avant (« c'est pas fait », « ne continue pas ») annule tout, sans
- *   regarder les alternatives suivantes : mieux vaut ne rien faire que l'inverse ;
+ * Trois garde-fous, parce qu'on parle aussi d'autre chose en cuisine :
+ * - une négation juste avant (« c'est pas fait », « ne continue pas ») ou juste après
+ *   (« continue pas ») annule tout, sans regarder les alternatives suivantes : mieux vaut ne
+ *   rien faire que l'inverse ;
+ * - deux commandes dans la même phrase (« ok attends ») : « pause » ou « arrête d'écouter »
+ *   l'emporte, le choix prudent ;
  * - une phrase trop longue autour de la commande (« tu as fait les courses ? ») est de la
  *   conversation, pas une commande.
  */
@@ -45,6 +48,12 @@ object ReconnaissanceCommandes {
     ).flatMap { (commande, phrases) -> phrases.map { normaliser(it) to commande } }
 
     private val NEGATIONS = setOf("pas", "ne", "n", "jamais")
+
+    /** Juste après la commande, à l'oral : « continue pas » pour « ne continue pas ». */
+    private val NEGATIONS_APRES = setOf("pas", "jamais")
+
+    /** Celles qui arrêtent quelque chose : dites avec une autre, elles l'emportent. */
+    private val PRUDENTES = setOf(CommandeVocale.PAUSE, CommandeVocale.ARRETER)
 
     /**
      * Les mots tolérés autour d'une phrase : autant qu'elle en compte, trois au plus
@@ -78,8 +87,13 @@ object ReconnaissanceCommandes {
                 .map { Trouvaille(it, phrase.size, commande) }
         }
         if (trouvailles.isEmpty()) return Lecture.Rien
-        if (trouvailles.any { mots.getOrNull(it.debut - 1) in NEGATIONS }) return Lecture.Annulee
-        val meilleure = trouvailles.sortedWith(compareByDescending<Trouvaille> { it.longueur }.thenBy { it.debut }).first()
+        val niee = trouvailles.any {
+            mots.getOrNull(it.debut - 1) in NEGATIONS || mots.getOrNull(it.debut + it.longueur) in NEGATIONS_APRES
+        }
+        if (niee) return Lecture.Annulee
+        // « ok attends » : deux commandes qui se contredisent, on retient la prudente.
+        val retenues = trouvailles.filter { it.commande in PRUDENTES }.ifEmpty { trouvailles }
+        val meilleure = retenues.sortedWith(compareByDescending<Trouvaille> { it.longueur }.thenBy { it.debut }).first()
         if (mots.size > meilleure.longueur + motsEnPlus(meilleure.longueur)) return Lecture.Rien
         return Lecture.Commande(meilleure.commande)
     }

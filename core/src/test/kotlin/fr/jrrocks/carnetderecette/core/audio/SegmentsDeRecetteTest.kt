@@ -41,6 +41,42 @@ class SegmentsDeRecetteTest {
     }
 
     @Test
+    fun `les heures et les durees composees`() {
+        assertEquals(5400, duree("Laisse mariner 1 h 30 min."))
+        assertEquals(5400, duree("Laisse mariner 1 h 30."))
+        assertEquals(5400, duree("1h30"))
+        assertEquals(5400, duree("1 heure 30 minutes"))
+        assertEquals(5400, duree("1,5 h"))
+        assertEquals(3600, duree("Laisse reposer 1 h au frais."))
+        assertEquals(7200, duree("2 heures"))
+        assertEquals(7200, duree("1 à 2 h"))
+        assertEquals(7200, duree("1 h 30 à 2 h"))
+        assertEquals(270, duree("Cuis 4 min 30"))
+        assertEquals(270, duree("Cuis 4 min 30."))
+        assertEquals(270, duree("Cuis 4 min 30 s, puis retourne."))
+        assertEquals(270, duree("4 min 30 secondes"))
+        assertEquals(30, duree("0 min 30"))
+        // « 30 » finit la première durée, ce n'est pas la borne basse de la seconde.
+        assertEquals(300, duree("4 min 30 à 5 min"))
+        assertEquals(3600, duree("30 min à 1 h"))
+    }
+
+    @Test
+    fun `pas de minuteur plutot qu'un faux`() {
+        assertNull(duree("Fais cuire 1/2 min."))
+        assertNull(duree("½ min"))
+        assertNull(duree("1 ½ min"))
+        assertNull(duree("3/4 h"))
+        assertNull(duree("1 h 1/2"))
+        assertNull(duree("4 min 1/2"))
+        assertNull(duree("Cuis 4 min 30 de chaque côté."))
+        assertNull(duree("4 min 75"))
+        assertNull(duree("1 h 75"))
+        assertNull(duree("4 min 30,5"))
+        assertEquals(60, duree("1/2 à 1 min"))
+    }
+
+    @Test
     fun `pas de duree`() {
         assertNull(duree("Préchauffe le four à 200 °C."))
         assertNull(duree("Étape 3"))
@@ -50,7 +86,29 @@ class SegmentsDeRecetteTest {
         assertNull(duree("min 5"))
         assertNull(duree("0 min"))
         assertNull(duree("1000 min"))
+        assertNull(duree("11 h"))
+        assertNull(duree("la touche h"))
         assertNull(duree(""))
+    }
+
+    @Test
+    fun `un texte hostile ne fait jamais planter la seance`() {
+        val hostiles = listOf(
+            "Répète les étapes 1,2,3.", "1,2,3", "1.2.3", "1,2,3 min", "1.2.3 h", "1,,2 min", ",5 min", "1, min", "１２ min",
+            "１,５ min", "٣ min", "½½", "½½ min", "3/", "/4", "3/ min", "/4 min", "1/", "/ min", "", " ", "\n", "min", "h",
+            "99999999999999999999999 min", "9".repeat(400) + " min", "1 h " + "9".repeat(400), "4 min " + "9".repeat(400),
+            "x99999999999", "1 h 30 à", "à 1 h", "- min", "12 – min", "4 min 30 à", "0 h 0 min 0",
+        )
+        for (texte in hostiles) duree(texte)
+        val recette = Recette(
+            id = "hostile",
+            titre = "Hostile",
+            url = "",
+            etapes = hostiles.mapIndexed { i, texte -> EtapeRecette(i + 1, texte) },
+        )
+        assertEquals(hostiles.size, SegmentsDeRecette.de(recette).size)
+        assertEquals(1800, duree("1,2,3 min, puis 30 min"))
+        assertNull(duree("１２ min"))
     }
 
     @Test
