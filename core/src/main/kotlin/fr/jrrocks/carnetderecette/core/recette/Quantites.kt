@@ -9,7 +9,8 @@ object Quantites {
     private val FRACTIONS = mapOf(0.25 to "¼", 0.5 to "½", 0.75 to "¾", 1.0 / 3 to "⅓", 2.0 / 3 to "⅔")
 
     fun formater(montant: Double?, unite: String?): String {
-        val nombre = montant?.let(::nombre)
+        // Le site écrit « 0 selon le goût » pour le sel et le poivre : pas de zéro à l'écran.
+        val nombre = montant?.takeIf { it > 1e-6 }?.let(::nombre)
         val mesure = unite?.trim()?.takeIf { it.isNotEmpty() }?.let { accorder(it, montant) }
         return listOfNotNull(nombre, mesure).joinToString("\u00A0")
     }

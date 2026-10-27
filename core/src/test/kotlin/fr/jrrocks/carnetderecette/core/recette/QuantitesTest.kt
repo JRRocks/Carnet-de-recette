@@ -17,5 +17,8 @@ class QuantitesTest {
         assertEquals("selon ton goût", Quantites.formater(null, "selon ton goût"))
         assertEquals("", Quantites.formater(null, null))
         assertEquals("3", Quantites.formater(3.0, " "))
+        // Tel que le site l'écrit pour le sel et le poivre, et un tiers arrondi par le site.
+        assertEquals("selon le goût", Quantites.formater(0.0, "selon le goût"))
+        assertEquals("1⅓\u00A0sachets", Quantites.formater(1.3300000429153442, "sachet(s)"))
     }
 }

@@ -55,8 +55,8 @@ android {
         // `versionCode` décide de la mise à jour en ligne (`maj/MiseAJour.kt`) : la CI le
         // recopie dans le nom de l'APK publié et l'app compare le sien à celui-là. L'oublier
         // en publiant, c'est publier une version que personne n'installera.
-        versionCode = 4
-        versionName = "0.4"
+        versionCode = 5
+        versionName = "0.5"
         // L'OCR embarqué (ML Kit) pèse 7 à 12 Mo par architecture : les téléphones sont en
         // ARM, les versions x86 doubleraient l'APK téléchargé à chaque mise à jour.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
