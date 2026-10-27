@@ -1,6 +1,7 @@
 package fr.jrrocks.carnetderecette.ui.composants
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -137,7 +138,18 @@ private fun RangeeEtape(
             .padding(start = DEBUT_TEXTE, end = 16.dp, top = HAUT, bottom = 20.dp),
     ) {
         if (enCours) {
-            Plaque(etape.titre, style = stylePlaque)
+            // La plaque, et sa date à droite quand elle en a une.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Plaque(etape.titre, Modifier.weight(1f, fill = false), style = stylePlaque)
+                etape.fin?.let {
+                    Text(
+                        it,
+                        style = typo.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                        color = couleurs.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 12.dp),
+                    )
+                }
+            }
         } else {
             // Le titre et son complément (date, état) partagent la même ligne de base.
             Row {

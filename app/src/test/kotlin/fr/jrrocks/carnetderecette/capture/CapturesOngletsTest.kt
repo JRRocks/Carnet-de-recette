@@ -97,12 +97,14 @@ class CapturesOngletsTest {
         afficher()
 
         compose.onNodeWithText("Semaine 44").assertExists()
-        compose.onNodeWithContentDescription("Brancher le Drive du foyer").assertExists()
+        // Le scan marche sans Drive : c'est l'action de la semaine ; brancher le Drive est dans son étape.
+        compose.onNodeWithContentDescription("Scanner les box de la semaine").assertExists()
+        compose.onNodeWithText("Brancher le Drive", useUnmergedTree = true).assertExists()
         compose.onNodeWithContentDescription("Réglages, action requise").assertExists()
         capturer("01-semaine-non-branche")
 
         drive(EtatDrive.EnCours)
-        compose.onNodeWithContentDescription("Brancher le Drive du foyer").assertDoesNotExist()
+        compose.onNodeWithText("Brancher le Drive", useUnmergedTree = true).assertDoesNotExist()
         capturer("02-semaine-connexion")
 
         // Le message réel du code, pas une copie : la capture montre ce que l'app affichera.
@@ -110,12 +112,12 @@ class CapturesOngletsTest {
         val motif = DriveCarnet.exceptionPour(403, "GET", apiNonActivee).message!!
         drive(EtatDrive.Erreur(motif))
         compose.onNodeWithText(motif).assertExists()
-        compose.onNodeWithContentDescription("Réessayer de brancher le Drive").assertExists()
+        compose.onNodeWithText("Réessayer", useUnmergedTree = true).assertExists()
         capturer("03-semaine-erreur")
 
         drive(EtatDrive.Pret("foyer@example.org"), EtatMiseAJour.Disponible("0.3"))
         compose.onNodeWithText("La version 0.3 est prête.").assertExists()
-        compose.onNodeWithContentDescription("Brancher le Drive du foyer").assertDoesNotExist()
+        compose.onNodeWithText("Brancher le Drive", useUnmergedTree = true).assertDoesNotExist()
         capturer("04-semaine-branche-maj")
 
         // Revérification silencieuse au lancement : l'étape reste faite, aucun point sur Réglages.
@@ -123,6 +125,13 @@ class CapturesOngletsTest {
         compose.onNodeWithText("foyer@example.org").assertExists()
         compose.onNodeWithContentDescription("Réglages, action requise").assertDoesNotExist()
         capturer("05-semaine-branche")
+
+        // Deux box scannées : elles s'affichent sous le vendredi, avec leur recette.
+        etat = etat.copy(semaine = SemaineFactice.etat())
+        compose.onNodeWithText("2 box scannées.", substring = true).assertExists()
+        compose.onNodeWithText("Poulet fictif croustillant", useUnmergedTree = true).assertExists()
+        capturer("05b-semaine-boxes")
+        etat = etat.copy(semaine = null)
 
         // « Plus tard » : plus rien sur la Semaine.
         drive(EtatDrive.Pret("foyer@example.org"), EtatMiseAJour.Ecartee("0.3"))
@@ -158,8 +167,14 @@ class CapturesOngletsTest {
         afficher()
 
         onglet = Onglet.CARNET
-        compose.onNodeWithText("Le carnet se remplit le samedi").assertExists()
+        compose.onNodeWithText("Les recettes arrivent au scan des box").assertExists()
         capturer("11-carnet")
+
+        etat = etat.copy(semaine = SemaineFactice.etat())
+        compose.onNodeWithText("Poulet fictif croustillant").assertExists()
+        compose.onNodeWithText("4\u00A0pers. · à confirmer · page pas encore lue").assertExists()
+        capturer("11b-carnet-semaine")
+        etat = etat.copy(semaine = null)
 
         onglet = Onglet.CUISINE
         compose.onNodeWithText("En cuisine, chacun ses tâches").assertExists()
@@ -192,7 +207,9 @@ class CapturesOngletsTest {
 
         sombre = true
         onglet = Onglet.CARNET
+        etat = etat.copy(semaine = SemaineFactice.etat())
         capturer("12-carnet-sombre")
+        etat = etat.copy(semaine = null)
         onglet = Onglet.CUISINE
         capturer("22-cuisine-sombre")
         onglet = Onglet.REGLAGES

@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import fr.jrrocks.carnetderecette.R
 import fr.jrrocks.carnetderecette.core.semaine.SemaineIso
+import fr.jrrocks.carnetderecette.donnees.EtatSemaine
 import fr.jrrocks.carnetderecette.ui.theme.Carnet
 import java.time.LocalDate
 
@@ -76,7 +77,12 @@ data class EtatCarnet(
     val maj: EtatMiseAJour,
     val versionNom: String,
     val aujourdHui: LocalDate,
+    /** Ce que le téléphone sait de la semaine affichée : box scannées, recettes, fiches. */
+    val semaine: EtatSemaine? = null,
 ) {
+    /** La semaine affichée : celle du vendredi de livraison de référence. */
+    val semaineIso: SemaineIso get() = SemaineIso.de(vendrediDeReference(aujourdHui))
+
     /** Le Drive ou une mise à jour attend un geste : point sur l'onglet Réglages. */
     val actionRequise: Boolean
         get() = drive is EtatDrive.NonConnecte || drive is EtatDrive.Erreur || maj.attendUnGeste
@@ -114,7 +120,7 @@ fun CarnetApp(
     snackbars: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     BackHandler(enabled = onglet != Onglet.SEMAINE) { onOnglet(Onglet.SEMAINE) }
-    val bouton = if (onglet == Onglet.SEMAINE) boutonDeLaSemaine(etat.drive, actions) else null
+    val bouton = if (onglet == Onglet.SEMAINE) boutonDeLaSemaine(etat, actions) else null
     val large = LocalConfiguration.current.screenWidthDp >= LARGEUR_RAIL
     // L'encoche de la caméra compte aussi (safeDrawing) : en paysage, rien ne passe dessous.
     val bords = WindowInsets.safeDrawing
@@ -160,9 +166,9 @@ fun CarnetApp(
                 Crossfade(onglet, Modifier.widthIn(max = LARGEUR_CONTENU).fillMaxSize(), animationSpec = tween(200), label = "onglet") { courant ->
                     when (courant) {
                         Onglet.SEMAINE -> EcranSemaine(etat, actions, marges, avecBouton = bouton != null)
-                        Onglet.CARNET -> EcranCarnet(marges)
+                        Onglet.CARNET -> EcranCarnet(marges, etat.semaine, actions.ouvrir)
                         Onglet.CUISINE -> EcranCuisine(marges) {
-                            actions.ouvrir(Destination.Seance(SemaineIso.de(vendrediDeReference(etat.aujourdHui)), numero = null))
+                            actions.ouvrir(Destination.Seance(etat.semaineIso, numero = null))
                         }
                         Onglet.REGLAGES -> EcranReglages(etat, actions, marges)
                     }
@@ -296,11 +302,11 @@ private data class BoutonAction(
 )
 
 /**
- * Le bouton d'action de la Semaine suit l'étape en cours. Au lot 1, il n'y en a que pour
- * brancher le Drive ; une fois branché, aucun bouton : pas de contrôle qui ne mène nulle part.
+ * Le bouton d'action de la Semaine suit l'étape en cours : au lot 2, scanner les box. Le scan
+ * marche sans Drive (décision du 2026-10-27) et reste ouvert tous les jours : une livraison
+ * peut être décalée. Brancher le Drive est l'action de sa propre étape.
  */
-private fun boutonDeLaSemaine(drive: EtatDrive, actions: ActionsCarnet): BoutonAction? = when (drive) {
-    EtatDrive.NonConnecte -> BoutonAction("Brancher le Drive", R.drawable.ic_add_to_drive, "Brancher le Drive du foyer", actions.brancher)
-    is EtatDrive.Erreur -> BoutonAction("Réessayer", R.drawable.ic_refresh, "Réessayer de brancher le Drive", actions.brancher)
-    EtatDrive.EnCours, is EtatDrive.Verification, is EtatDrive.Pret -> null
-}
+private fun boutonDeLaSemaine(etat: EtatCarnet, actions: ActionsCarnet): BoutonAction =
+    BoutonAction("Scanner les box", R.drawable.ic_document_scanner, "Scanner les box de la semaine") {
+        actions.ouvrir(Destination.Scanner(etat.semaineIso))
+    }
