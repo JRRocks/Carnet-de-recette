@@ -149,8 +149,9 @@ L'étiquette porte aujourd'hui un grand numéro (`207`) et un nombre de personne
 On ne fige pas ce format.
 
 - **Moteur** : `scan-multimode` de la Library (extrait de ScanList, OCR ✅ éprouvé), mode OCR.
-  - La chaîne : `OcrAnalyzer` → `ScanConsensus` (5 lectures identiques) → `ScanDebouncer`
-    → `ScanFeedback`.
+  - La chaîne : `OcrElements` (adaptation d'`OcrAnalyzer`) → `ScanConsensus` (5 lectures
+    identiques) → anti-rebond **glissant** de `SuiviEtiquettes` (à la place du verrou à durée
+    fixe de `ScanDebouncer` : une étiquette restée en vue n'est pas revalidée) → `ScanFeedback`.
   - On n'utilise **pas** `RegexRuleEngine`.
 - **Adaptation** (faite le 2026-10-27, consignée dans la fiche de la Library) : `OcrAnalyzer`
   devient `OcrElements`, qui remonte les **éléments** reconnus dont le centre est dans le

@@ -130,6 +130,19 @@ class SuiviEtiquettesTest {
     }
 
     @Test
+    fun `un voisin mal lu ne se valide pas tant que la box verrouillee est en vue`() {
+        repeat(4) { image(207, 4) }
+        assertEquals(207, image(207, 4)?.numero)
+        // L'OCR hésite entre 207 et 201 sur la même étiquette : rien ne se valide.
+        repeat(20) { assertNull(image(if (it % 2 == 0) 207 else 201, 4)) }
+
+        // 207 sort du champ ; 1,5 s plus tard, une vraie box 201 se valide.
+        maintenant += 1_500
+        repeat(4) { image(201, 2) }
+        assertEquals(201, image(201, 2)?.numero)
+    }
+
+    @Test
     fun `une box retiree reste ignoree tant qu elle est dans le champ`() {
         repeat(4) { image(207, 4) }
         suivi.ignorer(207)

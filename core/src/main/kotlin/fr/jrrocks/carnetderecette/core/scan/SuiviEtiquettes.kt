@@ -31,6 +31,10 @@ data class BoxValidee(
  *   gardée en vue pendant qu'on corrige les personnes n'est donc pas revalidée (pas de « déjà
  *   scannée » en boucle), et la même box se rescanne exprès en la sortant un instant du champ.
  *   Un verrou à durée fixe tombait 1,5 s après la validation, étiquette toujours en vue.
+ * - Un numéro à un chiffre près d'un numéro verrouillé (« 201 » quand « 207 » est en vue) est
+ *   écarté sans repousser le verrou : la garde d'ambiguïté du consensus ne le voit plus, puisque
+ *   le numéro verrouillé n'y est plus compté. Une vraie box voisine passe au plus [fenetreMs]
+ *   après que la première a quitté le champ.
  * - [ignorer] pose le même verrou sur une box que l'utilisateur vient de retirer : elle ne
  *   revient pas toute seule si son étiquette est encore dans le réticule.
  *
@@ -71,6 +75,13 @@ class SuiviEtiquettes(
             // Un numéro verrouillé encore dans le champ : le verrou glisse, rien n'est revalidé.
             if (numero != null) verrous[numero] = maintenant
             // Une image sans numéro à compter ne casse pas le compteur en cours, mais fait vieillir les autres.
+            consensus.submit(emptyList(), maintenant)
+            return null
+        }
+        if (verrous.keys.any { ScanConsensus.withinEditDistanceOne(numero.toString(), it.toString()) }) {
+            // À un chiffre près d'un numéro verrouillé encore dans le champ : la même étiquette
+            // mal lue (« 201 » pour « 207 »). Tant que l'original est en vue, sa garde d'ambiguïté
+            // ne joue plus (il n'est plus compté) : on écarte le voisin sans repousser le verrou.
             consensus.submit(emptyList(), maintenant)
             return null
         }

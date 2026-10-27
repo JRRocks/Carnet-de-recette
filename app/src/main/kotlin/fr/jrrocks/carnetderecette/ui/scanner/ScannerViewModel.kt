@@ -89,7 +89,7 @@ class ScannerViewModel(application: Application, private val semaine: SemaineIso
     /** À chaque ouverture de l'écran : le consensus repart de zéro, le menu est lu s'il ne l'est pas. */
     fun demarrer() {
         aReinitialiser = true
-        local.update { it.copy(doublon = false, menuOuvert = false, erreur = null) }
+        local.update { it.copy(doublon = false, menuOuvert = false, erreur = null, couranteChoisie = false) }
         if (local.value.menu != EtatMenu.Lu) lireMenu(forcer = false)
     }
 
@@ -142,7 +142,7 @@ class ScannerViewModel(application: Application, private val semaine: SemaineIso
             // touchée exprès dans la liste reste en grand.
             retourSonore.duplicate()
             local.update { l ->
-                if (l.couranteChoisie && l.courante != validee.numero) l
+                if (l.couranteChoisie && l.courante != null && l.courante != validee.numero) l
                 else l.copy(courante = validee.numero, couranteChoisie = false, doublon = true)
             }
             return
@@ -195,15 +195,17 @@ class ScannerViewModel(application: Application, private val semaine: SemaineIso
         suivi.ignorer(numero)
         val photo = depot.etat(semaine).value.fichier.box(numero)?.photo
         local.update {
+            val effacee = it.courante == numero
             it.copy(
-                courante = it.courante.takeUnless { c -> c == numero },
+                courante = it.courante.takeUnless { effacee },
+                couranteChoisie = it.couranteChoisie && !effacee,
                 provisoire = it.provisoire.takeUnless { p -> p?.numero == numero },
                 horsLigne = it.horsLigne - numero,
             )
         }
         viewModelScope.launch {
-            ecrire { depot.retirerBox(semaine, numero) }
-            if (photo != null) withContext(Dispatchers.IO) { File(depot.dossierPhotos(semaine), photo).delete() }
+            // La photo n'est effacée que si le retrait est écrit : sinon la box la garde.
+            if (ecrire { depot.retirerBox(semaine, numero) } && photo != null) withContext(Dispatchers.IO) { File(depot.dossierPhotos(semaine), photo).delete() }
         }
     }
 
@@ -224,18 +226,19 @@ class ScannerViewModel(application: Application, private val semaine: SemaineIso
 
     /**
      * Une écriture du dépôt. Un échec (téléphone plein, renommage refusé) s'affiche au lieu de
-     * faire planter l'app ; la suivante qui réussit efface la phrase.
+     * faire planter l'app ; la suivante qui réussit efface la phrase. Rend vrai si elle a réussi.
      */
-    private suspend fun ecrire(ecriture: suspend () -> Unit) {
+    private suspend fun ecrire(ecriture: suspend () -> Unit): Boolean =
         try {
             ecriture()
             local.update { if (it.erreur != null) it.copy(erreur = null) else it }
+            true
         } catch (annulation: CancellationException) {
             throw annulation
         } catch (e: Exception) {
             local.update { it.copy(erreur = ERREUR_ECRITURE) }
+            false
         }
-    }
 
     private fun noterResultat(numero: Int, resultat: ResultatRecette) {
         if (resultat is ResultatRecette.HorsLigne) local.update { it.copy(horsLigne = it.horsLigne + numero) }

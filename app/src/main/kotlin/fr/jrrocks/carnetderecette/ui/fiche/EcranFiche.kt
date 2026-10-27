@@ -2,7 +2,11 @@ package fr.jrrocks.carnetderecette.ui.fiche
 
 import androidx.camera.core.ImageCapture
 import androidx.compose.foundation.layout.fillMaxSize
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,6 +15,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import fr.jrrocks.carnetderecette.scan.CameraPreview
@@ -30,13 +35,16 @@ fun EcranFiche(destination: Destination.Fiche, onRetour: () -> Unit, ouvrir: (De
         factory = FicheViewModel.fabrique(destination.semaine, destination.numero),
     )
     val retour by rememberUpdatedState(onRetour)
+    val activite = LocalContext.current.activite()
     LaunchedEffect(vm) {
-        // demarrer() efface une fin restée d'une visite précédente (écran quitté pendant
-        // l'enregistrement) ; on n'attend qu'ensuite celle de cette visite.
         vm.demarrer()
+        // Une fin arrivée pendant une rotation est vue ici, après la recréation.
         vm.fini.first { it }
         vm.retourFait()
         retour()
+    }
+    DisposableEffect(vm) {
+        onDispose { if (activite?.isChangingConfigurations != true) vm.quitte() }
     }
 
     val permission = rememberPermissionCamera()
@@ -78,4 +86,10 @@ fun EcranFiche(destination: Destination.Fiche, onRetour: () -> Unit, ouvrir: (De
             surErreur = { erreurCamera = it },
         )
     }
+}
+
+private tailrec fun Context.activite(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.activite()
+    else -> null
 }

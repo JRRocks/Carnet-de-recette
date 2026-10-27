@@ -95,13 +95,18 @@ class FicheViewModel(
     private val enregistree = MutableStateFlow(false)
     val fini: StateFlow<Boolean> = enregistree
 
+    /**
+     * Vrai tant que l'écran est ouvert ([demarrer] → [quitte]) ; une rotation ne le quitte pas.
+     * Un enregistrement qui finit après un Retour ne refermera donc pas la visite suivante.
+     */
+    private var present = false
+
     val etat: StateFlow<EtatFiche> = combine(depot.etat(semaine), local, ::vue)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), vue(depot.etat(semaine).value, local.value))
 
     /** À l'ouverture de l'écran : le menu est lu s'il ne l'est pas, pour proposer les recettes. */
     fun demarrer() {
-        // Une fin d'enregistrement que l'écran, déjà quitté, n'a pas vue ne le referme pas à l'ouverture.
-        enregistree.value = false
+        present = true
         local.update { it.copy(erreur = null, menuOuvert = false) }
         viewModelScope.launch {
             try {
@@ -220,7 +225,8 @@ class FicheViewModel(
                     if (l.verso == null) File(depot.dossierPhotos(semaine), "$base-verso.jpg").delete()
                 }
                 local.value = Local()
-                enregistree.value = true
+                // Écran quitté pendant l'enregistrement : la fiche est enregistrée, rien à refermer.
+                enregistree.value = present
             } catch (annulation: CancellationException) {
                 throw annulation
             } catch (e: Exception) {
@@ -238,6 +244,12 @@ class FicheViewModel(
     private class Rangee(val attente: File, val definitive: File, val page: PageFiche)
 
     fun retourFait() {
+        enregistree.value = false
+    }
+
+    /** L'écran est vraiment quitté (pas une rotation). */
+    fun quitte() {
+        present = false
         enregistree.value = false
     }
 
