@@ -62,7 +62,7 @@ class CapturesPaysageTest {
             EtatDrive.Pret("foyer@example.org"),
             EtatMiseAJour.Disponible("0.3"),
             "0.2",
-            LocalDate.of(2026, 10, 26),
+            LocalDate.of(2026, 10, 30),
         )
         compose.setContent {
             ThemeCarnet(sombre = false) {

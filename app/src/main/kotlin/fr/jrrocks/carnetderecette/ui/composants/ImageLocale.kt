@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,14 +32,35 @@ import kotlinx.coroutines.withContext
  */
 val LocalImagesDuSite = staticCompositionLocalOf<(String) -> File?> { { null } }
 
+/**
+ * Augmente à chaque image du site téléchargée
+ * ([fr.jrrocks.carnetderecette.donnees.EtatSemaine.versionImages]). [imageDuSite] la lit :
+ * quand une image arrive, seuls ses appelants se redessinent, et l'écran garde son état
+ * (nombre de personnes, défilement).
+ */
+val LocalVersionImages = compositionLocalOf { 0 }
+
 /** Le fichier local de l'image [chemin] du site, s'il est déjà téléchargé. */
 @Composable
-fun imageDuSite(chemin: String?): File? = chemin?.let { LocalImagesDuSite.current(it) }
+fun imageDuSite(chemin: String?): File? {
+    // Lue pour s'abonner : une image arrivée redessine l'appelant, même si rien d'autre n'a changé.
+    LocalVersionImages.current
+    return chemin?.let { LocalImagesDuSite.current(it) }
+}
 
 /** Les images déjà décodées, pour ne pas les relire à chaque défilement (16 Mo au plus). */
 private val memoire = object : LruCache<String, ImageBitmap>(16 * 1024 * 1024) {
     override fun sizeOf(cle: String, valeur: ImageBitmap) = valeur.width * valeur.height * 4
 }
+
+/**
+ * Une image se garde décodée à la taille demandée : la vignette de 300 px du Carnet ne doit
+ * pas servir de photo pleine largeur sur la fiche de la recette.
+ */
+private fun cleMemoire(fichier: File, taillePx: Int) = "${fichier.path}@$taillePx"
+
+/** L'image déjà décodée pour [fichier] à [taillePx], s'il y en a une (pour les tests). */
+internal fun imageEnMemoire(fichier: File, taillePx: Int): ImageBitmap? = memoire.get(cleMemoire(fichier, taillePx))
 
 /**
  * Une image du site déjà téléchargée sur le téléphone ([fichier]), décodée hors du fil
@@ -54,11 +76,11 @@ fun ImageLocale(
     forme: Shape = MaterialTheme.shapes.large,
     taillePx: Int = 1200,
 ) {
-    val cle = fichier?.path
+    val cle = fichier?.let { cleMemoire(it, taillePx) }
     var image by remember(cle) { mutableStateOf(cle?.let { memoire.get(it) }) }
     LaunchedEffect(cle) {
-        if (fichier != null && image == null) {
-            image = withContext(Dispatchers.IO) { decoder(fichier, taillePx) }?.also { memoire.put(fichier.path, it) }
+        if (fichier != null && cle != null && image == null) {
+            image = withContext(Dispatchers.IO) { decoder(fichier, taillePx) }?.also { memoire.put(cle, it) }
         }
     }
     val semantique = if (description == null) Modifier.clearAndSetSemantics {} else Modifier

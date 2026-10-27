@@ -19,7 +19,11 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 
-/** La page a répondu, mais on n'y trouve pas ce qu'il faut : le site a peut-être changé. */
+/**
+ * La page a répondu, mais on n'y trouve pas ce qu'il faut : le site a peut-être changé. Le
+ * message est écrit ici, sans rien de la page (ni titre ni adresse) : la sonde de GitHub le
+ * publie dans une issue du dépôt public.
+ */
 class PageIllisible(message: String) : Exception(message)
 
 /**

@@ -1,5 +1,6 @@
 package fr.jrrocks.carnetderecette.ui
 
+import fr.jrrocks.carnetderecette.core.semaine.SemaineIso
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -7,13 +8,17 @@ import org.junit.Test
 class SemaineTest {
 
     @Test
-    fun `le vendredi de reference regarde devant en semaine et derriere le week-end`() {
-        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 10, 26))) // lundi
-        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 10, 29))) // jeudi
-        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 10, 30))) // vendredi
+    fun `la semaine va du vendredi de livraison au jeudi suivant`() {
+        assertEquals(LocalDate.of(2026, 10, 23), vendrediDeReference(LocalDate.of(2026, 10, 29))) // jeudi : box du 23
+        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 10, 30))) // vendredi de livraison
         assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 10, 31))) // samedi, jour de l'import
         assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 11, 1))) // dimanche
-        assertEquals(LocalDate.of(2026, 11, 6), vendrediDeReference(LocalDate.of(2026, 11, 2))) // lundi suivant
+        // Du lundi au jeudi, on cuisine les box du vendredi passé : leurs recettes restent là.
+        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 11, 2))) // lundi
+        assertEquals(LocalDate.of(2026, 10, 30), vendrediDeReference(LocalDate.of(2026, 11, 5))) // jeudi
+        assertEquals(LocalDate.of(2026, 11, 6), vendrediDeReference(LocalDate.of(2026, 11, 6))) // vendredi suivant
+        // Le 1er janvier 2027 est un vendredi : la semaine 53 de 2026 court jusqu'au jeudi 7.
+        assertEquals(LocalDate.of(2027, 1, 1), vendrediDeReference(LocalDate.of(2027, 1, 7)))
     }
 
     @Test
@@ -25,6 +30,9 @@ class SemaineTest {
             assertEquals(dateCourte(vendredi), etapes.first { it.titre == "Vendredi" }.fin)
             assertEquals(dateCourte(vendredi.plusDays(1)), etapes.first { it.titre == "Samedi" }.fin)
             assertEquals("Semaine ${numeroSemaine(vendredi)}", titreSemaine(jour))
+            // Les données (box, recettes, scanner, séance) sont celles de la semaine du titre.
+            assertEquals(SemaineIso.de(vendredi), etat.semaineIso)
+            assertEquals(numeroSemaine(vendredi), etat.semaineIso.numero)
         }
     }
 

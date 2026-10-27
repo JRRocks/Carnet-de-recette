@@ -30,11 +30,19 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Compilée à part : un échec ici (compilation, dépendance) fait échouer le job sans issue,
+      # au lieu de passer pour un accès rompu.
+      - name: Compiler la sonde
+        run: ./gradlew --quiet :sonde:installDist
+
+      # Le script de démarrage, pas `gradlew run` : Gradle remplacerait le code 2 (« on ne
+      # conclut rien ») par 1. La sortie ne contient que des numéros et des codes HTTP, jamais
+      # un titre ni une adresse de recette (dépôt public).
       - name: Lancer la sonde
         id: sonde
         run: |
           set +e
-          ./gradlew --quiet :sonde:run > sonde.txt 2>&1
+          sonde/build/install/sonde/bin/sonde > sonde.txt 2>&1
           echo "code=$?" >> "$GITHUB_OUTPUT"
           cat sonde.txt
 
@@ -53,4 +61,14 @@ jobs:
 
       - name: Échouer si l'accès est rompu
         if: steps.sonde.outputs.code == '1'
+        run: exit 1
+
+      # Réseau absent ou refus passager du site (429, 503…) : pas d'issue, un simple avertissement.
+      - name: Signaler une sonde sans conclusion
+        if: steps.sonde.outputs.code == '2'
+        run: |
+          echo "::warning title=Sonde HelloFresh::Le site n'a pas répondu (réseau, limite de débit ou maintenance) : rien à conclure cette semaine."
+
+      - name: Échouer si la sonde s'est arrêtée autrement
+        if: steps.sonde.outputs.code != '0' && steps.sonde.outputs.code != '1' && steps.sonde.outputs.code != '2'
         run: exit 1

@@ -1,6 +1,7 @@
 package fr.jrrocks.carnetderecette.core.semaine
 
 import java.time.LocalDate
+import java.util.Locale
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -18,6 +19,21 @@ class SemaineIsoTest {
         // Le 1er janvier 2027 est un vendredi de la semaine 53 de 2026.
         assertEquals(SemaineIso(2026, 53), SemaineIso.de(LocalDate.of(2027, 1, 1)))
         assertEquals(LocalDate.of(2027, 1, 1), SemaineIso(2026, 53).vendredi())
+    }
+
+    @Test
+    fun `chiffres latins quelle que soit la langue du telephone`() {
+        val avant = Locale.getDefault()
+        try {
+            // Un téléphone réglé en arabe (chiffres ٠-٩) ou en persan : l'adresse du menu ne change pas.
+            for (langue in listOf("ar-EG-u-nu-arab", "fa-IR")) {
+                Locale.setDefault(Locale.forLanguageTag(langue))
+                assertEquals("2026-W44", SemaineIso(2026, 44).toString())
+                assertEquals("2026-W04", SemaineIso(2026, 4).toString())
+            }
+        } finally {
+            Locale.setDefault(avant)
+        }
     }
 
     @Test

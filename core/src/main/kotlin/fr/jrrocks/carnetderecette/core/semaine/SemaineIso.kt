@@ -3,6 +3,7 @@ package fr.jrrocks.carnetderecette.core.semaine
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.IsoFields
+import java.util.Locale
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -22,7 +23,11 @@ data class SemaineIso(val annee: Int, val numero: Int) : Comparable<SemaineIso> 
         require(numero in 1..53) { "Numéro de semaine hors limites : $numero" }
     }
 
-    override fun toString(): String = "%04d-W%02d".format(annee, numero)
+    /**
+     * En chiffres latins quelle que soit la langue du téléphone : en arabe ou en persan, le
+     * format par défaut écrirait « ٢٠٢٦-W٤٤ », une adresse de menu que le site ne connaît pas.
+     */
+    override fun toString(): String = String.format(Locale.ROOT, "%04d-W%02d", annee, numero)
 
     override fun compareTo(other: SemaineIso): Int = compareValuesBy(this, other, { it.annee }, { it.numero })
 

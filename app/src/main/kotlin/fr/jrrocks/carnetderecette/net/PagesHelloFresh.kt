@@ -1,6 +1,7 @@
 package fr.jrrocks.carnetderecette.net
 
 import fr.jrrocks.carnetderecette.core.hellofresh.AdressesHelloFresh
+import fr.jrrocks.carnetderecette.core.hellofresh.PageIllisible
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -9,7 +10,11 @@ import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Le site a répondu par un refus (404, 500…) : ce n'est pas une panne de réseau. */
+/**
+ * Le site a répondu par un refus (404, 503…) ou renvoie hors des pages publiques : ce n'est
+ * pas une panne de réseau. Les refus passagers (429, 503…) se reconnaissent à leur [code]
+ * ([fr.jrrocks.carnetderecette.core.hellofresh.Sonde.refusPassager]).
+ */
 class RefusSite(val code: Int, message: String) : IOException(message)
 
 /** Une page reçue : son texte et l'adresse finale, après les redirections. */
@@ -31,20 +36,30 @@ object PagesHelloFresh {
     private const val REDIRECTIONS_MAX = 5
 
     suspend fun lire(adresse: String): PageRecue = withContext(Dispatchers.IO) {
+        if (!AdressesHelloFresh.estPagePublique(adresse)) throw RefusSite(0, "Adresse hors des pages publiques\u00A0: $adresse.")
         var courante = adresse
         repeat(REDIRECTIONS_MAX + 1) {
-            require(AdressesHelloFresh.estPagePublique(courante)) { "Adresse hors des pages publiques : $courante" }
             val connexion = ouvrir(courante, "text/html,application/xhtml+xml")
             try {
                 when (val code = connexion.responseCode) {
                     in 200..299 -> {
+                        // Une page démesurée : le site a changé, ce n'est pas le réseau.
                         val octets = connexion.inputStream.use { lireBorne(it, TAILLE_MAX_PAGE) }
+                            ?: throw PageIllisible("La page dépasse ${TAILLE_MAX_PAGE / (1024 * 1024)} Mo\u00A0: le site a sans doute changé.")
                         return@withContext PageRecue(String(octets, Charsets.UTF_8), courante)
                     }
                     // Le site redirige l'ancienne adresse d'une recette vers la nouvelle.
-                    in 300..399 -> courante = connexion.getHeaderField("Location")
-                        ?.let { URL(URL(courante), it).toString() }
-                        ?: throw RefusSite(code, "Le site redirige sans dire où (code $code).")
+                    in 300..399 -> {
+                        val suivante = connexion.getHeaderField("Location")
+                            ?.let { runCatching { URL(URL(courante), it).toString() }.getOrNull() }
+                            ?: throw RefusSite(code, "Le site redirige sans dire où (code $code).")
+                        // Une redirection hors des pages publiques (autre site, http, /gw…) : on ne la
+                        // suit pas, et c'est un changement du site, pas une coupure de réseau.
+                        if (!AdressesHelloFresh.estPagePublique(suivante)) {
+                            throw RefusSite(code, "Le site renvoie hors des pages publiques (code $code).")
+                        }
+                        courante = suivante
+                    }
                     else -> throw RefusSite(code, "Le site a répondu «\u00A0$code\u00A0» pour ${connexion.url.path}.")
                 }
             } finally {
@@ -63,7 +78,9 @@ object PagesHelloFresh {
             if (code !in 200..299) throw RefusSite(code, "Image refusée (code $code).")
             val partiel = File(cible.parentFile, cible.name + ".partiel")
             cible.parentFile?.mkdirs()
-            connexion.inputStream.use { entree -> partiel.writeBytes(lireBorne(entree, TAILLE_MAX_IMAGE)) }
+            val octets = connexion.inputStream.use { lireBorne(it, TAILLE_MAX_IMAGE) }
+                ?: throw IOException("Image trop grosse (plus de ${TAILLE_MAX_IMAGE / (1024 * 1024)} Mo).")
+            partiel.writeBytes(octets)
             if (!partiel.renameTo(cible)) {
                 partiel.delete()
                 throw IOException("Image impossible à ranger.")
@@ -85,7 +102,8 @@ object PagesHelloFresh {
             setRequestProperty("Accept-Language", "fr-FR,fr;q=0.9")
         }
 
-    private fun lireBorne(entree: java.io.InputStream, max: Long): ByteArray {
+    /** Le corps de la réponse ; `null` s'il dépasse [max] octets. */
+    private fun lireBorne(entree: java.io.InputStream, max: Long): ByteArray? {
         val sortie = ByteArrayOutputStream()
         val tampon = ByteArray(64 * 1024)
         var total = 0L
@@ -93,7 +111,7 @@ object PagesHelloFresh {
             val lus = entree.read(tampon)
             if (lus < 0) break
             total += lus
-            if (total > max) throw IOException("Réponse trop grosse (plus de ${max / (1024 * 1024)} Mo).")
+            if (total > max) return null
             sortie.write(tampon, 0, lus)
         }
         return sortie.toByteArray()

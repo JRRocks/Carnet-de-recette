@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -102,8 +103,14 @@ private fun Application(vm: AccueilViewModel, aujourdHui: LocalDate) {
     var onglet by rememberSaveable { mutableStateOf(Onglet.SEMAINE) }
     // Les écrans poussés par-dessus les onglets (scanner, fiche, recette, séance).
     var pile by rememberSaveable(stateSaver = Destination.SauvegardePile) { mutableStateOf(emptyList<Destination>()) }
+    // Seul le haut de la pile est composé : chaque écran du dessous garde ici son état
+    // (défilement, nombre de personnes…) et le retrouve au retour. Un écran dépilé l'oublie.
+    val etatsDesEcrans = rememberSaveableStateHolder()
     val ouvrir: (Destination) -> Unit = { pile = pile + it }
-    val retour: () -> Unit = { pile = pile.dropLast(1) }
+    val retour: () -> Unit = {
+        pile.lastOrNull()?.let { etatsDesEcrans.removeState(cleEcran(pile.lastIndex, it)) }
+        pile = pile.dropLast(1)
+    }
     BackHandler(enabled = pile.isNotEmpty(), onBack = retour)
 
     // La semaine affichée (vendredi de livraison de référence) et ce que le téléphone en sait.
@@ -111,22 +118,29 @@ private fun Application(vm: AccueilViewModel, aujourdHui: LocalDate) {
     val semaine = remember(aujourdHui) { SemaineIso.de(vendrediDeReference(aujourdHui)) }
     val etatSemaine by depot.etat(semaine).collectAsState()
 
-    when (val haut = pile.lastOrNull()) {
-        null -> CarnetApp(
-            etat = EtatCarnet(vm.etat, vm.maj, BuildConfig.VERSION_NAME, aujourdHui, etatSemaine),
-            onglet = onglet,
-            onOnglet = { onglet = it },
-            actions = ActionsCarnet(
-                brancher = vm::connecter,
-                mettreAJour = { vm.mettreAJour(ouvrirReglages = contexte::startActivity) },
-                majPlusTard = vm::ecarterMiseAJour,
-                ouvrir = ouvrir,
-            ),
-            snackbars = snackbars,
-        )
-        is Destination.Scanner -> EcranScanner(haut, retour, ouvrir)
-        is Destination.Fiche -> EcranFiche(haut, retour, ouvrir)
-        is Destination.Recette -> EcranRecette(haut, retour, ouvrir)
-        is Destination.Seance -> EcranSeance(haut, retour, ouvrir)
+    val haut = pile.lastOrNull()
+    etatsDesEcrans.SaveableStateProvider(cleEcran(pile.lastIndex, haut)) {
+        when (haut) {
+            null -> CarnetApp(
+                etat = EtatCarnet(vm.etat, vm.maj, BuildConfig.VERSION_NAME, aujourdHui, etatSemaine),
+                onglet = onglet,
+                onOnglet = { onglet = it },
+                actions = ActionsCarnet(
+                    brancher = vm::connecter,
+                    mettreAJour = { vm.mettreAJour(ouvrirReglages = contexte::startActivity) },
+                    majPlusTard = vm::ecarterMiseAJour,
+                    ouvrir = ouvrir,
+                ),
+                snackbars = snackbars,
+            )
+            is Destination.Scanner -> EcranScanner(haut, retour, ouvrir)
+            is Destination.Fiche -> EcranFiche(haut, retour, ouvrir)
+            is Destination.Recette -> EcranRecette(haut, retour, ouvrir)
+            is Destination.Seance -> EcranSeance(haut, retour, ouvrir)
+        }
     }
 }
+
+/** La clé de l'état d'un écran : son rang dans la pile (la même recette peut y être deux fois), ou les onglets. */
+private fun cleEcran(rang: Int, destination: Destination?): String =
+    if (destination == null) "onglets" else "$rang|${Destination.ecrire(destination)}"

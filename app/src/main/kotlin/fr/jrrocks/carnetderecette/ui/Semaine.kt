@@ -9,17 +9,15 @@ import java.util.Locale
 
 /*
  * Le calendrier de la semaine. Une semaine du Carnet va du vendredi de livraison au jeudi
- * suivant : le samedi et le dimanche appartiennent encore à la semaine du vendredi qui vient
- * de passer (le samedi, on importe ses recettes). Les autres jours regardent vers le
- * vendredi qui vient. Le titre « Semaine N » et les dates de la ligne partent tous de ce
- * vendredi de référence. Les lots suivants caleront l'étape courante sur les données du Drive.
+ * suivant : du samedi au jeudi, on reste dans la semaine du dernier vendredi, celle des box
+ * qu'on cuisine (le samedi, on importe ses recettes ; du lundi au jeudi, on les cuisine). Elle
+ * ne passe à la suivante que le vendredi de la livraison d'après. Tout part de ce vendredi de
+ * référence : le titre « Semaine N », les dates de la ligne et les données (box scannées,
+ * recettes, scanner, fiche papier, séance), rangées sous la semaine de leur livraison.
  */
 
-/** Le vendredi de livraison de la semaine affichée. */
-fun vendrediDeReference(jour: LocalDate): LocalDate = when (jour.dayOfWeek) {
-    DayOfWeek.SATURDAY, DayOfWeek.SUNDAY -> jour.with(TemporalAdjusters.previous(DayOfWeek.FRIDAY))
-    else -> jour.with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY))
-}
+/** Le vendredi de livraison de la semaine en cours : aujourd'hui si c'est vendredi, sinon le dernier passé. */
+fun vendrediDeReference(jour: LocalDate): LocalDate = jour.with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY))
 
 /** Le numéro de semaine des agendas (44), le même que dans les fichiers `semaine-AAAA-Sww`. */
 fun numeroSemaine(jour: LocalDate): Int = jour.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)
