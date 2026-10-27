@@ -106,6 +106,10 @@ est actif) :
 
 À garder en tête en codant chaque lot ; données d'exemple factices.
 
+- **Quelle semaine** : une semaine du Carnet va du vendredi de livraison au jeudi suivant. Du
+  samedi au jeudi, l'accueil, le Carnet, le scanner, la fiche et la séance restent sur la
+  semaine du dernier vendredi (celle des box qu'on cuisine) ; on passe à la suivante le
+  vendredi de la livraison d'après (décision du 2026-10-27, quand les données sont arrivées).
 - **Semaine** (lot 5 en place) : la ligne Vendredi, Vendredi soir, Samedi, En cuisine, avec
   dates en chiffres tabulaires au bout de la ligne ; l'étape courante en plaque ; sous
   « En cuisine », la recette du soir et qui fait quoi (pastilles, nombre de tâches, durée).
@@ -138,7 +142,8 @@ est actif) :
   recette : étape en cours en 32 sp, ramenée à 24 sp au-delà de 90 caractères ; voix et micro
   dans la barre du haut, témoin « Micro ouvert » au-dessus du dock ; sous chaque étape à
   venir, son déclencheur (« Lue après l'étape d'avant », « à la fin du minuteur ») et son
-  interrupteur de lecture.
+  interrupteur de lecture. L'écran de fin dit « Micro coupé » quand la fin a fermé le micro,
+  et montre le témoin « Micro ouvert » si on le rouvre à la main.
 
 ## États
 
@@ -146,8 +151,11 @@ Les états du Drive et de la mise à jour s'affichent en **lignes d'état** plei
 (`LigneEtat.kt` : icône, phrase qui dit la cause et quoi faire, actions), jamais en boîte de
 dialogue : rien n'interrompt quelqu'un en pleine cuisine.
 
-- Sur la Semaine, en tête : la mise à jour, puis « hors ligne » ; **au plus deux**. L'erreur du
-  Drive s'écrit sous l'étape « Drive du foyer », et le bouton flottant devient « Réessayer ».
+- Sur la Semaine, en tête : l'accès HelloFresh rompu (avec « Photographier la fiche ») et le
+  téléphone plein quand ils arrivent, puis la mise à jour et « hors ligne ». Les deux premiers
+  sont rares et urgents ; les deux derniers, **au plus deux** lignes. L'erreur du Drive s'écrit
+  sous l'étape « Drive du foyer », près de son bouton « Réessayer » ; le bouton flottant reste
+  « Scanner les box » (le scan marche sans Drive).
 - Au lancement d'un téléphone déjà branché, l'app revérifie le Drive **en silence** : l'étape
   reste faite, le compte reste affiché, rien ne clignote.
 - La mise à jour : « La version X est prête » avec « Plus tard » et « Mettre à jour » ; pendant

@@ -214,6 +214,41 @@ class DepotLocalTest {
     }
 
     @Test
+    fun `apres un redemarrage, une autre page lue ne leve pas l acces rompu`() = runBlocking {
+        pages[MENU] = { PageRecue(menu, "u") }
+        pages[url(205)] = { PageRecue("<html>maintenance</html>", "u") }
+        assertTrue(depot().ajouterBox(semaine, box(205)) is ResultatRecette.AccesRompu)
+
+        // Nouveau lancement : la 206 se lit, la 205 reste cassée.
+        val relu = depot()
+        pages[url(206)] = { PageRecue(recette(206), "u") }
+        assertTrue(relu.ajouterBox(semaine, box(206)) is ResultatRecette.Lue)
+        assertNotNull(relu.etat(semaine).value.accesRompu)
+        assertEquals(StatutSemaine.DEGRADE, relu.etat(semaine).value.fichier.statut)
+
+        // « Réessayer » relit aussi la 205, retrouvée d'après le fichier.
+        pages[url(205)] = { PageRecue(recette(205), "u") }
+        relu.chargerMenu(semaine, forcer = true)
+        assertNull(relu.etat(semaine).value.accesRompu)
+        assertEquals(StatutSemaine.OK, relu.etat(semaine).value.fichier.statut)
+    }
+
+    @Test
+    fun `retirer la seule box en echec leve l acces rompu`() = runBlocking {
+        pages[MENU] = { PageRecue(menu, "u") }
+        pages[url(204)] = { PageRecue(recette(204), "u") }
+        pages[url(205)] = { PageRecue("<html>maintenance</html>", "u") }
+        val depot = depot()
+        depot.ajouterBox(semaine, box(204))
+        depot.ajouterBox(semaine, box(205))
+        assertNotNull(depot.etat(semaine).value.accesRompu)
+
+        depot.retirerBox(semaine, 205)
+        assertNull(depot.etat(semaine).value.accesRompu)
+        assertEquals(StatutSemaine.OK, depot.etat(semaine).value.fichier.statut)
+    }
+
+    @Test
     fun `l acces reste rompu tant qu une page est en echec, Reessayer les relit`() = runBlocking {
         pages[MENU] = { PageRecue(menu, "u") }
         pages[url(204)] = { PageRecue("<html>maintenance</html>", "u") }

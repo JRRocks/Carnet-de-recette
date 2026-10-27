@@ -121,7 +121,7 @@ class DepotLocal(
         // « Réessayer » : les pages de recette qui avaient rompu l'accès sont relues aussi ; si
         // elles se lisent, l'accès rompu est levé.
         if (forcer) {
-            val enEchec = verrou.withLock { pagesRompues[semaine].orEmpty().toList() }
+            val enEchec = verrou.withLock { rompues(semaine).orEmpty().toList() }
             enEchec.forEach { lireRecetteDe(semaine, it) }
         }
         return ResultatMenu.Lu(menu)
@@ -233,8 +233,6 @@ class DepotLocal(
 
     override suspend fun retirerBox(semaine: SemaineIso, numero: Int) {
         verrou.withLock {
-            // Sa page ne compte plus parmi celles qui rompent l'accès.
-            pagesRompues[semaine]?.remove(numero)
             sansPlanter {
                 modifier(semaine) { f ->
                     val restantes = f.boxes.filterNot { it.numero == numero }
@@ -242,6 +240,9 @@ class DepotLocal(
                     f.copy(boxes = restantes, recettes = f.recettes.filter { it.id in utiles })
                 }
             }
+            // Sa page ne compte plus parmi celles qui rompent l'accès ; c'était la dernière : levé.
+            val enEchec = rompues(semaine)
+            if (enEchec != null && enEchec.remove(numero) && enEchec.isEmpty()) sansPlanter { leverEchec(semaine, numero) }
         }
     }
 
@@ -288,7 +289,7 @@ class DepotLocal(
      * le bandeau disparaît et le fichier repasse « ok ». Sous [verrou] ; lève [EcritureImpossible].
      */
     private suspend fun leverEchec(semaine: SemaineIso, page: Int) {
-        val restantes = pagesRompues[semaine]?.apply { remove(page) }
+        val restantes = rompues(semaine)?.apply { remove(page) }
         if (!restantes.isNullOrEmpty()) return
         pagesRompues.remove(semaine)
         val etat = flux(semaine)
@@ -298,8 +299,24 @@ class DepotLocal(
         modifier(semaine) { it.copy(statut = StatutSemaine.OK, message = null) }
     }
 
+    /**
+     * Les pages en échec de [semaine], sous [verrou]. Après un redémarrage, l'ensemble se
+     * reconstruit d'après le fichier resté « degrade » : les box dont la page n'est pas lue, et
+     * le menu s'il manque. Sans cela, la première lecture réussie d'une autre page lèverait
+     * l'accès rompu alors qu'une page reste cassée. `null` si la semaine n'est pas dégradée.
+     */
+    private fun rompues(semaine: SemaineIso): MutableSet<Int>? {
+        pagesRompues[semaine]?.let { return it }
+        val etat = flux(semaine).value
+        if (etat.fichier.statut != StatutSemaine.DEGRADE) return null
+        val reconstruites = etat.fichier.boxes.filter { it.recetteId == null }.map { it.numero }.toMutableSet()
+        if (etat.menu == null) reconstruites += PAGE_MENU
+        pagesRompues[semaine] = reconstruites
+        return reconstruites
+    }
+
     private suspend fun marquerRompu(semaine: SemaineIso, page: Int, motif: String) = verrou.withLock {
-        pagesRompues.getOrPut(semaine) { mutableSetOf() } += page
+        (rompues(semaine) ?: mutableSetOf<Int>().also { pagesRompues[semaine] = it }) += page
         flux(semaine).update { it.copy(accesRompu = motif) }
         sansPlanter { modifier(semaine) { it.copy(statut = StatutSemaine.DEGRADE, message = motif) } }
     }

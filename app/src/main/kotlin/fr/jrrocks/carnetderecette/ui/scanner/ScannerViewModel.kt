@@ -15,6 +15,7 @@ import fr.jrrocks.carnetderecette.core.semaine.BoxScannee
 import fr.jrrocks.carnetderecette.core.semaine.OrigineBox
 import fr.jrrocks.carnetderecette.core.semaine.SemaineIso
 import fr.jrrocks.carnetderecette.donnees.DepotLocal
+import fr.jrrocks.carnetderecette.donnees.EcritureImpossible
 import fr.jrrocks.carnetderecette.donnees.EtatSemaine
 import fr.jrrocks.carnetderecette.donnees.ResultatMenu
 import fr.jrrocks.carnetderecette.donnees.ResultatRecette
@@ -205,7 +206,8 @@ class ScannerViewModel(application: Application, private val semaine: SemaineIso
         }
         viewModelScope.launch {
             // La photo n'est effacée que si le retrait est écrit : sinon la box la garde.
-            if (ecrire { depot.retirerBox(semaine, numero) } && photo != null) withContext(Dispatchers.IO) { File(depot.dossierPhotos(semaine), photo).delete() }
+            val retiree = ecrire { depot.retirerBox(semaine, numero) } && depot.etat(semaine).value.fichier.box(numero) == null
+            if (retiree && photo != null) withContext(Dispatchers.IO) { File(depot.dossierPhotos(semaine), photo).delete() }
         }
     }
 
@@ -241,7 +243,10 @@ class ScannerViewModel(application: Application, private val semaine: SemaineIso
         }
 
     private fun noterResultat(numero: Int, resultat: ResultatRecette) {
-        if (resultat is ResultatRecette.HorsLigne) local.update { it.copy(horsLigne = it.horsLigne + numero) }
+        // Téléphone plein : ce n'est pas le réseau, la ligne d'erreur le dit déjà.
+        if (resultat is ResultatRecette.HorsLigne && resultat.motif != EcritureImpossible.MOTIF_ECRITURE) {
+            local.update { it.copy(horsLigne = it.horsLigne + numero) }
+        }
     }
 
     /** Sans nombre lu, celui des box déjà scannées (le foyer commande souvent pareil), sinon 2 ; à confirmer. */
@@ -288,7 +293,8 @@ class ScannerViewModel(application: Application, private val semaine: SemaineIso
             boxes = boxes,
             entreesMenu = menu?.entrees.orEmpty(),
             menuOuvert = l.menuOuvert,
-            erreur = l.erreur,
+            // Le dépôt dit aussi quand le téléphone est plein (il ne lève plus d'erreur).
+            erreur = l.erreur ?: semaineEtat.ecritureImpossible,
         )
     }
 

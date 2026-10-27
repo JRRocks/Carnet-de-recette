@@ -170,6 +170,9 @@ On ne fige pas ce format.
   recette « à confirmer » au lieu de deviner.
 - **Retour immédiat** : « 207 · <titre de la recette> · 4 pers. ✔ », puis la page de la recette est
   lue et ajoutée à `recettes-AAAA-Sww.json`.
+- **Images** : photo du plat, des étapes et des ingrédients, téléchargées en arrière-plan
+  après la lecture de la page ; celles qui manquent (coupure, app fermée trop tôt) sont
+  redemandées au chargement de la semaine et à l'ouverture d'une fiche recette.
 - **Ce qui part sur Drive** :
   - les éléments bruts (texte, hauteur, position) et l'heure du scan ;
   - la recette reconnue ;
@@ -285,10 +288,23 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
   - Étape en cours en 32 sp, ramenée à 24 sp au-delà de 90 caractères : une étape entière du
     site remplirait l'écran et cacherait la suite. Les segments courts de Cowork restent en
     32 sp.
+  - **Durées lues** : minutes, heures (« 1 h 30 » = 90 min) et « 4 min 30 ». Une fraction ou
+    un nombre douteux ne donne aucun minuteur plutôt qu'un faux.
+  - **Sonnerie** : seule, environ 9 s de salves ; une seule salve quand la voix enchaîne sur
+    l'étape suivante. Un geste la fait taire.
+  - **Garde-fou, suite** : une négation juste après la commande (« continue pas ») annule
+    aussi ; deux commandes dans la même phrase : « pause » ou « arrête d'écouter » l'emporte.
+  - **Fin de recette** : le micro se ferme et l'écran de fin le dit. L'écran n'est plus gardé
+    allumé, sauf si un minuteur tourne encore.
   - Limites connues : les minuteurs s'arrêtent si l'on quitte la séance ou si Android tue
-    l'app (ni service ni notification) ; beaucoup de téléphones bipent à chaque relance de
-    l'écoute ; « ok » ou « fait » entendus d'une télé avancent d'une étape (« précédent »
-    répare).
+    l'app (ni service ni notification). Écran éteint ou app en arrière-plan, ils sonnent à
+    l'heure : un verrou d'éveil borné (fin du dernier minuteur plus une marge) garde le
+    processeur éveillé tant qu'un minuteur tourne, puis le temps de la sonnerie. En veille
+    profonde (Doze : téléphone immobile, écran éteint, sur batterie depuis longtemps, surtout
+    pour un minuteur de plus d'une heure), Android ignore ce verrou et la sonnerie peut partir
+    en retard ; seule une alarme exacte ou un service au premier plan l'éviterait. Beaucoup de
+    téléphones bipent à chaque relance de l'écoute. « ok » ou « fait » entendus d'une télé
+    avancent d'une étape (« précédent » répare).
 
 ## 9. Mode dégradé et alerte
 
@@ -298,8 +314,22 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
 
 | Où | Quand | Effet si ça casse |
 |---|---|---|
-| App | Ouverture de l'écran de scan | Bandeau immédiat « Accès HelloFresh rompu : passe en mode dégradé (PDF ou photo de la fiche) », et statut `degrade` dans `recettes-…json` pour que Cowork le reprenne |
-| GitHub Actions (optionnel) | Chaque jeudi | Même sonde sur les pages publiques ; ouvre une issue sur ce dépôt, donc un e-mail, **avant** le vendredi |
+| App | Chaque lecture du menu ou d'une page recette | Bandeau « Accès HelloFresh rompu » avec « Photographier la fiche », et statut `degrade` dans `recettes-…json` pour que Cowork le reprenne |
+| GitHub Actions (`sonde.yml`) | Chaque jeudi, 6 h 17 UTC (branche par défaut seulement) | Même lecteur sur le menu du vendredi suivant et une recette ; ouvre ou complète une issue sur ce dépôt, donc un e-mail, **avant** le vendredi |
+
+Précisions (relecture du 2026-10-27) :
+- **Dans l'app**, un refus passager du site (408, 429, 502, 503, 504) compte comme « hors
+  ligne », pas comme un accès rompu. 403, 404, 410, une redirection hors des pages publiques,
+  une page démesurée ou une page sans les champs attendus rompent l'accès.
+- L'accès rompu suit **les pages en échec** : il se lève quand la dernière se relit, quand sa
+  box est retirée, ou par « Réessayer », qui relit le menu puis ces pages. Le statut `degrade`
+  survit au redémarrage, et les pages en échec se retrouvent d'après le fichier.
+- **La sonde de GitHub** sort avec 0 (OK), 1 (accès rompu : issue) ou 2 (réseau ou refus
+  passager : simple avertissement, pas d'issue) ; un échec de compilation fait échouer le job
+  sans issue. Elle n'écrit que des numéros, des codes HTTP et nos propres mots, **jamais** un
+  titre, un chemin de page ou un texte du site (dépôt public). Une recette lue par le bloc de
+  secours `schema.org` (plus de quantités par portion) compte comme accès rompu pour elle, pas
+  pour l'app, qui s'en sert.
 
 **Mode dégradé.** Deux chemins vers le même fichier de semaine :
 
