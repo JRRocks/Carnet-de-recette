@@ -199,6 +199,20 @@ et les écrit), lancé par une **tâche planifiée** le vendredi soir, ou à la 
 4. Écrit `semaine-AAAA-Sww.json` dans `semaines/`. Ce fichier ne contient **que** son
    travail et des références aux recettes, jamais une copie du contenu d'origine.
 
+Relevé par l'aperçu de la semaine 44 (2026-11-06, six box, trois modèles, relecture à
+l'aveugle), à reprendre dans le skill au lot 3 :
+- **Modèle conseillé : Opus.** Note moyenne 8,8 sur 10, contre 6,2 pour Sonnet et 5,0 pour
+  Haiku ; Sonnet et Haiku posent des déclencheurs qui font attendre ou brûler (une sauce qui
+  démarre après les pâtes, l'ail qui brûle pendant que la viande attend) et recopient des
+  phrases. Opus prend 14 à 19 minutes par box, ce qui ne gêne pas une tâche du vendredi soir.
+- Le skill fait **dire la cuisson à cœur** (volaille, porc, viande hachée) et le **lavage des
+  mains** après la viande crue : aucun des trois modèles ne l'a fait de lui-même.
+- Il **signale les données douteuses** au lieu de les suivre ou de les corriger en silence
+  (une unité étrange, une durée totale plus courte que la préparation, un seul sachet prévu
+  pour deux fois plus de personnes).
+- Une tâche peut changer de rôle quand l'un est libre (« celui qui est libre prend la tâche
+  prête ») : le fichier porte le rôle de chaque tâche, pas seulement son type.
+
 Format du fichier de la semaine (esquisse, à figer au lot 3) :
 
 ```json
