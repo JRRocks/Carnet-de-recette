@@ -38,6 +38,27 @@ validées, architecture, déroulé de la semaine, ce qui est volontairement repo
    ligne.
 7. **Français** pour la documentation, l'interface et les messages de commit.
 
+## Méthode et mémoire du projet
+
+Méthode de travail : les règles communes et les skills de la Library (`SOCLE.md` et `skills/`
+de [JRRocks/Library](https://github.com/JRRocks/Library), branche `main`). Si la session ne les
+a pas chargés (pas de `~/.claude/library/`), les lire dans ce dépôt avant d'agir.
+
+| Rôle | Où |
+|---|---|
+| Décisions et lots | [`docs/cadrage.md`](docs/cadrage.md) § 2 et § 13 |
+| Journal : lire les trois dernières entrées, en écrire une avant chaque push | [`docs/JOURNAL.md`](docs/JOURNAL.md) |
+| Ce que seul l'utilisateur peut essayer sur son téléphone | [`docs/RECETTE.md`](docs/RECETTE.md) |
+| Réglages et décisions qui attendent l'utilisateur | [`docs/EN-ATTENTE.md`](docs/EN-ATTENTE.md) |
+| Aperçus à valider avant de coder un écran | `docs/previews/` |
+
+**À chaque session, rappeler une fois à l'utilisateur ce qui l'attend** (sa demande du
+2026-11-09) : les lignes ouvertes de `docs/EN-ATTENTE.md`, une ligne chacune, dans le premier
+message final de la session. Cocher et dater une ligne dès qu'il dit l'avoir faite.
+
+Tout le projet vit sur la branche de travail : `main` n'a que le README tant que la fusion
+n'est pas décidée (`docs/EN-ATTENTE.md`, D1).
+
 ## Compiler et tester
 
 Un conteneur cloud n'a pas de SDK Android. Une fois par session :

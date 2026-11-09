@@ -36,6 +36,10 @@ suit ses tâches sur son téléphone, à l'écran et à l'oreille.
 | Mode dégradé | Place réservée dans le code, **moteurs non codés** tant que l'accès HelloFresh tient, **sauf la fiche papier** (ligne « Fiche papier ») | 2026-10-23, révisé le 2026-10-27 |
 | Alerte | Une sonde prévient si l'accès HelloFresh casse, pour passer en mode dégradé | 2026-10-23 |
 | Visuel | Direction « **Correspondance** » (schéma de ligne, bleu nuit, Atkinson Hyperlegible Next), **4 onglets** : Semaine, Carnet, Cuisine, Réglages. La mise à jour se propose en ligne d'état, plus en boîte de dialogue ([direction](design/direction.md), [DESIGN.md](../DESIGN.md)) | 2026-10-26 |
+| Mise à jour | L'app demande la dernière version publiée **à chaque ouverture** (lancement ou retour au premier plan), pas une fois par processus (§ 11) | 2026-11-09, demande de l'utilisateur (« l'app check la dernière release GitHub à chaque lancement ») |
+| Clé de signature | Créée par la session et remise à l'utilisateur ; les secrets GitHub sont posés par lui, à la main, plus tard ([en attente](EN-ATTENTE.md), A1) | 2026-11-09 (« fais les clés secrètes toi-même », « note le réglage à faire pour plus tard ») |
+| Conduite du projet | La session conduit le projet, selon la méthode de la Library (règles communes et skills) ; l'utilisateur décide, choisit entre des variantes et essaie sur son téléphone | 2026-11-09 (« prends le projet en mains », « utilise les skills en repo Library ») |
+| Rappel | Ce qui attend l'utilisateur (réglages, décisions) tient dans une liste unique, rappelée une fois à chaque session ([en attente](EN-ATTENTE.md)) | 2026-11-09 (« tu me le rappelleras à chaque session ») |
 
 ### Pourquoi la récupération est passée de Cowork à l'app (test du 2026-10-23)
 

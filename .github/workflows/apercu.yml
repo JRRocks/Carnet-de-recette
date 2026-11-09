@@ -63,6 +63,8 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.SIGNATURE_KEYSTORE_BASE64 }}
           KEY_ALIAS: ${{ secrets.SIGNATURE_KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.SIGNATURE_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.SIGNATURE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           if [ -z "${KEYSTORE_BASE64:-}" ]; then
@@ -71,7 +73,25 @@ jobs:
             exit 0
           fi
           mkdir -p app/keystore-release
-          echo "$KEYSTORE_BASE64" | base64 -d > app/keystore-release/carnet-release.jks
+          if ! printf '%s' "$KEYSTORE_BASE64" | base64 -d > app/keystore-release/carnet-release.jks 2>/dev/null; then
+            echo "::error::SIGNATURE_KEYSTORE_BASE64 n'est pas du base64 valide : recolle-le en entier, sur une seule ligne. cf. docs/publication.md."
+            exit 1
+          fi
+          # La clé décodée se vérifie tout de suite (Library, skill depannage-ci) : un secret mal
+          # collé se dit ici, en clair, plutôt que par une erreur de signature en fin de compilation.
+          cle=app/keystore-release/carnet-release.jks
+          if ! keytool -list -keystore "$cle" -storepass:env STORE_PASSWORD >/dev/null 2>&1; then
+            echo "::error::La clé ne s'ouvre pas : recolle SIGNATURE_KEYSTORE_BASE64 (en entier, sur une seule ligne) ou SIGNATURE_STORE_PASSWORD. cf. docs/publication.md."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$cle" -storepass:env STORE_PASSWORD -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error::L'alias de SIGNATURE_KEY_ALIAS n'existe pas dans la clé (attendu : celui choisi à sa création). cf. docs/publication.md."
+            exit 1
+          fi
+          if [ "${KEY_PASSWORD:-}" != "${STORE_PASSWORD:-}" ]; then
+            echo "::error::SIGNATURE_KEY_PASSWORD diffère de SIGNATURE_STORE_PASSWORD : pour cette clé, c'est le même mot de passe. cf. docs/publication.md."
+            exit 1
+          fi
           # Les mots de passe ne passent PAS par ce fichier : `Properties.load` traiterait `\`
           # comme un échappement. Gradle les lit dans l'environnement de l'étape de compilation
           # (`SIGNATURE_STORE_PASSWORD`, `SIGNATURE_KEY_PASSWORD`, app/build.gradle.kts).
