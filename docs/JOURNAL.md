@@ -4,6 +4,61 @@
 > par une nouvelle entrée. Avant le 2026-11-09, l'histoire du projet est dans les messages de
 > commit et dans les lots du [cadrage](cadrage.md) § 13.
 
+## 2026-11-09 · Revue des langages : tout reste en Kotlin, quatre corrections à faire
+
+- **Branche et commit** : `claude/recipe-app-planner-92zsww`, à la suite de `6ab586d`.
+- **Objectif** : appliquer le skill `revue-langages` à la demande « passe l'application en
+  revue ». Ce skill est arrivé dans la Library le soir même ; l'entrée précédente, écrite
+  avant, ne le couvrait pas.
+- **Réalisé** : le rapport [`revues/2026-11-09-langages.md`](revues/2026-11-09-langages.md),
+  sur le gabarit du skill : relevé par domaine, mesures du moteur sur les données réelles de
+  la semaine 44, la même lecture écrite en Rust pour comparer, essais de robustesse, examen de
+  l'APK 0.8. **Aucun code de l'app n'a changé** (« rien n'est réécrit pendant la revue ») : la
+  version reste 0.8.
+- **Ce que la revue a montré** :
+  - Aucun domaine n'est limité par le calcul. La plus grosse opération, lire la page du menu
+    (4,3 Mo), prend 40 ms sur la machine de la session, 30 ms en Rust. Verdict : tout garder
+    en Kotlin.
+  - 82 % de l'APK (17,9 Mo sur 21,8) est la bibliothèque native de lecture de texte de ML Kit,
+    pour deux architectures.
+  - Quatre défauts à corriger sans changer de langage, tous repérables dans le code :
+    1. `DepotLocal.chargerMenu` et `lireRecetteDe` appellent `LecteurHelloFresh` après le
+       retour de `PagesHelloFresh.lire` : l'analyse tourne sur le fil de l'appelant
+       (`viewModelScope`), donc celui de l'interface. `importerSemaine` fait de même avec
+       `LecteurSemaine.lire`. `flux()` lit quatre fichiers au premier `etat()`, appelé depuis
+       la composition : à mesurer sur téléphone avant d'y toucher.
+    2. `TexteHtml.decoderEntites` : `Character.toChars` sans contrôle de plage (une entité
+       hors plage devient « la lecture s'est coupée : réessaie ») et `indexOf(';', i)` sans
+       borne (temps au carré).
+    3. `DriveCarnet.lireListe`, `lireJetonPage` et `lireEmail` : un JSON du mauvais type lève
+       une exception que `AccueilViewModel.preparerDossier` n'attrape pas.
+    4. `DepotLocal.lireDocument` n'attrape que trois sortes d'erreurs du fournisseur de
+       fichiers ; `MiseAJour.interroger` et `DriveCarnet.appel` lisent la réponse sans limite
+       de taille.
+  - CameraX 1.3.4 : sa bibliothèque native est alignée sur 4 Ko ; à partir de 1.4.0, sur
+    16 Ko (mesuré dans l'APK et dans cinq versions de la bibliothèque).
+- **Décisions** : aucune pour l'instant. Les questions 4 et 5 du rapport attendent
+  l'utilisateur ([en attente](EN-ATTENTE.md), D4).
+- **Choix du développeur** (l'utilisateur peut y revenir) : CameraX ne bouge qu'après un
+  premier vendredi réussi, la version actuelle étant celle éprouvée dans ScanList ; les
+  petites économies relevées (objets recréés à chaque image ou à chaque dessin, listes non
+  paresseuses) restent telles quelles, leur coût mesuré étant inférieur à un quart de
+  milliseconde.
+- **Vérifications** : un test privé du module `core`, hors du dépôt (il lit des pages
+  réelles), lancé trois fois : temps et mémoire d'une quinzaine d'opérations ; 30 000 semaines abîmées,
+  64 valeurs extrêmes, 32 imbrications profondes, 772 pages abîmées, 108 textes longs ; les
+  entités HTML une à une. Un programme Rust de comparaison (`cargo build --release`). L'en-tête
+  de chaque bibliothèque native de l'APK et de cinq versions de CameraX. La documentation
+  Android sur les pages de 16 Ko, relue le jour même. La CI du commit précédent : tests au
+  vert, aperçu non publié faute de secrets (A1).
+- **Non vérifié sur téléphone** : tous les chiffres. Ils viennent de la machine de la session.
+- **Problèmes et dette** : les quatre défauts ci-dessus. Trois viennent de moteurs repris de
+  la Library et sont à signaler dans leurs fiches : `google-drive-appdata` (défaut 3),
+  `maj-auto-github` (réponse lue sans limite), `scan-multimode` (CameraX 1.3.4).
+- **Prochaine étape** : la version 0.9, en une seule livraison : les visuels choisis (D2), les
+  quatre corrections si l'utilisateur répond A à la question 5, le rapport de plantage de la
+  Library et des noms de classes lisibles dans l'APK. CameraX 1.4.2 ensuite.
+
 ## 2026-11-09 · Revue avec les skills de la Library, mémoire du projet, aperçu des visuels
 
 - **Branche et commit** : `claude/recipe-app-planner-92zsww`, à la suite de `89275f2` (version 0.8).

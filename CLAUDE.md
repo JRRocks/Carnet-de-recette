@@ -51,6 +51,7 @@ a pas chargés (pas de `~/.claude/library/`), les lire dans ce dépôt avant d'a
 | Ce que seul l'utilisateur peut essayer sur son téléphone | [`docs/RECETTE.md`](docs/RECETTE.md) |
 | Réglages et décisions qui attendent l'utilisateur | [`docs/EN-ATTENTE.md`](docs/EN-ATTENTE.md) |
 | Aperçus à valider avant de coder un écran | `docs/previews/` |
+| Revues datées (langages par domaine), avec leurs mesures | `docs/revues/` |
 
 **À chaque session, rappeler une fois à l'utilisateur ce qui l'attend** (sa demande du
 2026-11-09) : les lignes ouvertes de `docs/EN-ATTENTE.md`, une ligne chacune, dans le premier

@@ -18,6 +18,7 @@ reste ici, cochée et datée.
 
 | N° | Depuis | La question | Ce que ça débloque | État |
 |---|---|---|---|---|
-| D1 | 2026-11-09 | **Fusionner la branche de travail dans `main`** : ton accord pour ouvrir la demande de fusion | Tant que `main` n'a que le README, ni la publication (`version.yml`) ni la sonde du jeudi (`sonde.yml`) ne peuvent tourner : GitHub ne les connaît pas | En attente |
+| D1 | 2026-11-09 | **Faire entrer la branche de travail dans `main`** : ton accord pour pousser la branche telle quelle dans `main`. Pas de fusion par le site GitHub tant que A4 n'est pas fait : le commit de fusion porterait l'adresse du compte | Tant que `main` n'a que le README, ni la publication (`version.yml`) ni la sonde du jeudi (`sonde.yml`) ne peuvent tourner : GitHub ne les connaît pas | En attente |
 | D2 | 2026-11-09 | **Visuels** : choisir parmi les cinq variantes de l'aperçu ([page](previews/2026-11-09-visuels-graphiques.html)), et répondre aux deux autres questions | Le code des visuels | En attente |
 | D3 | 2026-11-09 | **Feu vert de publication**, donné version par version, après ton essai | La première version proposée en mise à jour aux téléphones | En attente d'un essai |
+| D4 | 2026-11-09 | **Revue des langages** : répondre aux questions 4 et 5 du [rapport](revues/2026-11-09-langages.md) (tout garder en Kotlin ; quand faire les quatre corrections) | Les corrections trouvées par la revue | En attente |
