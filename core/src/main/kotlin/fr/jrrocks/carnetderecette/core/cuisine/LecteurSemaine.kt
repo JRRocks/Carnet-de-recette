@@ -79,7 +79,9 @@ object LecteurSemaine {
 
         val remarques = mutableListOf<String>()
         val recettes = mutableListOf<RecettePreparee>()
-        (racine["recettes"] as? JsonArray).orEmpty().forEach { element ->
+        val elements = (racine["recettes"] as? JsonArray).orEmpty()
+        if (elements.size > RECETTES_MAX) remarques += "Le fichier compte ${elements.size} recettes\u00A0: seules les $RECETTES_MAX premières sont gardées."
+        elements.take(RECETTES_MAX).forEach { element ->
             val recette = lireRecette(element, remarques) ?: return@forEach
             if (recettes.any { it.numero == recette.numero }) {
                 remarques += "La recette ${recette.numero} apparaît deux fois\u00A0: seule la première est gardée."
@@ -118,11 +120,14 @@ object LecteurSemaine {
             return null
         }
         val source = objet["source"] as? JsonObject
-        val taches = lireTous(objet["taches"], Tache.serializer())
-        val segments = lireTous(objet["segments_audio"], SegmentPrepare.serializer())
+        val taches = lireTous(objet["taches"], Tache.serializer(), TACHES_MAX)
+        val segments = lireTous(objet["segments_audio"], SegmentPrepare.serializer(), SEGMENTS_MAX)
         val illisibles = taches.second + segments.second
         if (illisibles > 0) {
             remarques += "Recette $numero\u00A0: ${if (illisibles == 1) "un élément illisible laissé" else "$illisibles éléments illisibles laissés"} de côté."
+        }
+        if (taches.third || segments.third) {
+            remarques += "Recette $numero\u00A0: trop longue pour une recette du soir, elle est coupée après $TACHES_MAX tâches et $SEGMENTS_MAX segments."
         }
         return remettreDAplomb(
             RecettePreparee(
@@ -137,11 +142,15 @@ object LecteurSemaine {
         )
     }
 
-    /** Les éléments de [tableau] qui se lisent, et le nombre de ceux qui ne se lisent pas. */
-    private fun <T> lireTous(tableau: JsonElement?, serialiseur: KSerializer<T>): Pair<List<T>, Int> {
+    /**
+     * Les [max] premiers éléments de [tableau] qui se lisent, le nombre de ceux qui ne se lisent
+     * pas, et s'il en restait au-delà de [max].
+     */
+    private fun <T> lireTous(tableau: JsonElement?, serialiseur: KSerializer<T>, max: Int): Triple<List<T>, Int, Boolean> {
         val elements = (tableau as? JsonArray).orEmpty()
-        val lus = elements.mapNotNull { runCatching { json.decodeFromJsonElement(serialiseur, it) }.getOrNull() }
-        return lus to elements.size - lus.size
+        val gardes = elements.take(max)
+        val lus = gardes.mapNotNull { runCatching { json.decodeFromJsonElement(serialiseur, it) }.getOrNull() }
+        return Triple(lus, gardes.size - lus.size, elements.size > max)
     }
 
     /**
@@ -214,6 +223,15 @@ object LecteurSemaine {
         if (semaine.annee == autre.annee) "la semaine ${semaine.numero}" else "la semaine ${semaine.numero} de ${semaine.annee}"
 
     private const val PERSONNES_MAX = 20
+
+    /*
+     * Une semaine compte une dizaine de box, une recette une quarantaine de tâches au plus. Ces
+     * plafonds gardent l'app réactive devant un fichier aberrant : le plan se calcule à chaque
+     * affichage, et le fichier importé est relu à chaque lancement.
+     */
+    const val RECETTES_MAX = 40
+    const val TACHES_MAX = 200
+    const val SEGMENTS_MAX = 400
 
     const val MOTIF_PAS_UNE_SEMAINE =
         "Ce fichier n'est pas une semaine préparée par Claude\u00A0: choisis le fichier «\u00A0semaine-…\u00A0» du dossier «\u00A0Carnet de recettes\u00A0»."

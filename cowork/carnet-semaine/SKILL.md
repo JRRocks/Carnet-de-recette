@@ -39,9 +39,13 @@ découpe, l'autre à la chauffe, avec une planche et un couteau, et dis-le dans 
 
 Ce que contient `recettes-…json` :
 
-- `statut` : `degrade` si l'app n'a pas pu lire le site. Alors **arrête-toi** : écris le fichier
-  de la semaine avec `"statut": "degrade"`, son `message`, aucune recette, et dis au foyer de
-  photographier les fiches papier depuis l'app.
+- `statut` : `degrade` si l'app n'a pas pu lire le site (son `message` dit ce qui a cassé).
+  Prépare alors chaque box à partir de ce qui est là : sa recette si sa page a pu être lue,
+  sinon sa **fiche papier** (`fiches[]`, plus bas). Une box sans l'une ni l'autre : dis-le dans
+  le `message` du fichier de la semaine, avec `"statut": "partiel"`. S'il n'y a **ni recette lue
+  ni fiche**, écris le fichier avec `"statut": "degrade"`, ton `message`, aucune recette, et dis
+  au foyer de photographier la fiche papier de chaque box depuis l'app (« Photographier la
+  fiche »), puis de renvoyer les recettes.
 - `boxes[]`, une par étiquette scannée : `numero` (la recette au menu), `personnes` (proposé
   par l'app), `aConfirmer` (doute de l'app), `elements` (le texte lu sur l'étiquette, avec la
   hauteur des lettres et leur position dans le cadre de visée, de 0 à 1), `recetteId`.
@@ -49,7 +53,14 @@ Ce que contient `recettes-…json` :
   `livre` : vrai si dans la box, faux si à avoir chez soi), `portions[]` (pour chaque nombre de
   personnes : `quantites[]` avec `ingredient`, `montant`, `unite`), `etapes[]` (`numero`,
   `texte` d'origine), `ustensiles`, `dureeTotaleMin`, `dureePreparationMin`.
-- `fiches[]` : des fiches papier photographiées, en secours (texte brut lu par l'app).
+- `fiches[]` : les fiches papier photographiées en secours. Pour chacune : `numero` (la box,
+  s'il est connu), `personnes`, et `pages[]` (recto, verso), chacune avec ses `blocs` de texte
+  bruts lus par l'app (`texte`, `lignes`, et leur place sur la photo, `boite`, en pixels).
+  L'app n'a rien interprété : c'est toi qui reconstitues la recette (ingrédients, quantités,
+  étapes) à partir de ce texte, en t'aidant de la place des blocs (les colonnes d'une fiche).
+  Les photos restent sur le téléphone. Ce qui est illisible ou douteux, tu le dis
+  (`a_confirmer: true` et `confirmation`) au lieu de le deviner ; `source.type` vaut alors
+  `fiche`.
 
 ## 2. Ce que tu fais, box par box
 
@@ -108,7 +119,8 @@ Ce que contient `recettes-…json` :
    et ce qu'il faut vérifier, dans `confirmation` (et `a_confirmer: true` si cela change ce
    qu'on achète ou ce qu'on sert), et dans ton compte rendu.
 
-Quantités : celles de `portions` pour le nombre de personnes confirmé. Le texte d'origine parle
+Quantités : celles de `portions` pour le nombre de personnes confirmé (pour une fiche papier,
+celles qu'elle imprime pour ce nombre de personnes). Le texte d'origine parle
 « par personne » ou de « quantité indiquée » : convertis avec les portions, ne laisse jamais
 « par personne ». Ne multiplie pas à la main ce que les portions donnent déjà.
 

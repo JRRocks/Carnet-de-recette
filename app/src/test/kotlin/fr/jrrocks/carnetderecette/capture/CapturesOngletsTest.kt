@@ -129,7 +129,7 @@ class CapturesOngletsTest {
 
         // Deux box scannées : elles s'affichent sous le vendredi, avec leur recette.
         etat = etat.copy(semaine = SemaineFactice.etat())
-        compose.onNodeWithText("2 box scannées.", substring = true).assertExists()
+        compose.onNodeWithText("2\u00A0box scannées.", substring = true).assertExists()
         compose.onNodeWithText("Poulet fictif croustillant", useUnmergedTree = true).assertExists()
         capturer("05b-semaine-boxes")
 

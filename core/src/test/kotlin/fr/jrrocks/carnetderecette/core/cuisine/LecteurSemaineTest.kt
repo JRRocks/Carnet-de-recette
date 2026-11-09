@@ -242,6 +242,24 @@ class LecteurSemaineTest {
     }
 
     @Test
+    fun `un fichier aberrant est ramene a la taille d'une semaine`() {
+        val taches = (1..1_000).joinToString(",") { """{ "id": "t$it", "texte": "Tâche $it", "apres": ["t${it - 1}"] }""" }
+        val segments = (1..1_000).joinToString(",") { """{ "id": "a$it", "texte": "Segment $it." }""" }
+        val recette = """{ "numero": 1, "taches": [ $taches ], "segments_audio": [ $segments ] }"""
+        val autres = (2..60).joinToString(",") { """{ "numero": $it, "taches": [ { "id": "t1", "texte": "Couper" } ] }""" }
+        val lecture = lue(avecRecette("$recette, $autres"))
+        assertEquals(LecteurSemaine.RECETTES_MAX, lecture.fichier.recettes.size)
+        val longue = lecture.fichier.recette(1)!!
+        assertEquals(LecteurSemaine.TACHES_MAX, longue.taches.size)
+        assertEquals(LecteurSemaine.SEGMENTS_MAX, longue.segments.size)
+        assertEquals(2, lecture.remarques.size)
+        // Et son plan se calcule en un instant.
+        val debut = System.nanoTime()
+        assertEquals(LecteurSemaine.TACHES_MAX, Planificateur.planifier(longue, ModeCuisine.A_DEUX).duree)
+        assertTrue((System.nanoTime() - debut) / 1_000_000 < 500)
+    }
+
+    @Test
     fun `le nom des fichiers de la semaine`() {
         assertEquals("semaine-2026-S44.json", s44.nomDeFichier("semaine"))
         assertEquals("recettes-2027-S01.json", SemaineIso(2027, 1).nomDeFichier("recettes"))

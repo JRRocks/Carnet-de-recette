@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -91,6 +93,7 @@ class CapturesCuisineTest {
     private val ouvertes = mutableListOf<Destination>()
     private var importer = 0
     private var envois = 0
+    private var choisies = mutableListOf<Int>()
 
     private fun afficher() {
         compose.setContent {
@@ -107,6 +110,7 @@ class CapturesCuisineTest {
                             envoyerAClaude = { envois++ },
                             choisirRole = { etat = etat.copy(role = it) },
                             choisirMode = { etat = etat.copy(mode = it) },
+                            choisirCeSoir = { choisies += it },
                         ),
                         Modifier.testTag("capture"),
                     )
@@ -144,6 +148,11 @@ class CapturesCuisineTest {
         etat = etat.copy(semaine = SemaineFactice.etatImporte())
         compose.onNodeWithText("Ce soir\u00A0: la 207, environ 29\u00A0min à deux.").assertExists()
         compose.onNodeWithContentDescription("Découpe\u00A0: 4\u00A0tâches · 11\u00A0min").assertExists()
+        // Une autre version de Claude s'importe encore, et les recettes se renvoient.
+        compose.onNodeWithText("Importer une autre version").performClick()
+        assertEquals(2, importer)
+        compose.onNodeWithText("Renvoyer les recettes").performClick()
+        assertEquals(2, envois)
         compose.onNodeWithContentDescription("Cuisiner la recette 207 ce soir").performClick()
         assertEquals(Onglet.CUISINE, onglet)
         onglet = Onglet.SEMAINE
@@ -168,8 +177,14 @@ class CapturesCuisineTest {
         sansVocabulaireDeMetro()
         capturer("c04-cuisine-a-deux")
 
+        compose.onNode(hasText("À deux") and hasClickAction()).assertIsSelected()
+        compose.onNode(hasText("Seul") and hasClickAction()).assertIsNotSelected()
         compose.onNode(hasText("Découpe") and hasClickAction()).performClick()
         assertEquals(RoleCuisine.DECOUPE, etat.role)
+        compose.onNode(hasText("Découpe") and hasClickAction()).assertIsSelected()
+        // Une autre recette pour ce soir : le choix remonte, pour la Semaine aussi.
+        compose.onNodeWithText("Poêlée d'essai au sésame").performClick()
+        assertEquals(listOf(203), choisies)
         compose.onNodeWithText("Commencer mes tâches").performClick()
         assertEquals(Destination.Seance(SemaineIso(2026, 44), 207, Qui.DECOUPE), ouvertes.last())
         capturer("c05-cuisine-a-deux-decoupe")

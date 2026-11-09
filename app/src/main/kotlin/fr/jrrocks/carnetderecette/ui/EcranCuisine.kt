@@ -17,14 +17,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import fr.jrrocks.carnetderecette.R
@@ -38,6 +33,7 @@ import fr.jrrocks.carnetderecette.core.cuisine.SegmentsDuCuisinier
 import fr.jrrocks.carnetderecette.core.cuisine.Tache
 import fr.jrrocks.carnetderecette.donnees.EtatSemaine
 import fr.jrrocks.carnetderecette.ui.composants.BoutonCarnet
+import fr.jrrocks.carnetderecette.ui.composants.BoutonChoix
 import fr.jrrocks.carnetderecette.ui.composants.EtatEtape
 import fr.jrrocks.carnetderecette.ui.composants.EtatVide
 import fr.jrrocks.carnetderecette.ui.composants.LigneEtat
@@ -69,9 +65,8 @@ fun EcranCuisine(etat: EtatCarnet, actions: ActionsCarnet, marges: PaddingValues
         SansSemaine(etat, actions, marges)
         return
     }
-    // La recette touchée dans la liste ; à défaut, celle que Claude conseille pour ce soir.
-    var choisie by rememberSaveable(semaine.semaine.toString()) { mutableStateOf<Int?>(null) }
-    val recette = preparees.firstOrNull { it.numero == choisie } ?: semaine.ceSoir ?: preparees.first()
+    // Celle qu'on a touchée dans la liste, sinon celle que Claude propose ; tout est cuisiné : la première.
+    val recette = semaine.ceSoir ?: preparees.first()
     val plan = remember(recette, etat.mode) { Planificateur.planifier(recette, etat.mode) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(marges).padding(vertical = 16.dp)) {
         EnTete(semaine, recette, plan)
@@ -88,7 +83,7 @@ fun EcranCuisine(etat: EtatCarnet, actions: ActionsCarnet, marges: PaddingValues
         }
         HorizontalDivider(Modifier.padding(vertical = 16.dp))
         Commencer(semaine, recette, etat, actions)
-        AutresRecettes(semaine, recette) { choisie = it }
+        AutresRecettes(semaine, recette, actions.choisirCeSoir)
     }
 }
 
@@ -142,15 +137,8 @@ private fun ChoixDuMode(mode: ModeCuisine, choisir: (ModeCuisine) -> Unit) {
 
 /** Un choix parmi deux : plein quand il est pris, au contour sinon ; TalkBack dit lequel est pris. */
 @Composable
-private fun Choix(texte: String, pris: Boolean, @DrawableRes icone: Int?, choisir: () -> Unit) {
-    BoutonCarnet(
-        texte,
-        choisir,
-        Modifier.semantics { selected = pris },
-        sorte = if (pris) SorteBouton.PLEIN else SorteBouton.CONTOUR,
-        icone = icone,
-    )
-}
+private fun Choix(texte: String, pris: Boolean, @DrawableRes icone: Int?, choisir: () -> Unit) =
+    BoutonChoix(texte, pris, choisir, icone = icone)
 
 /**
  * Qui cuisine sur ce téléphone, puis le départ de la séance. À deux, chacun choisit son rôle

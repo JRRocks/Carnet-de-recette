@@ -118,8 +118,9 @@ est actif) :
   se déduit des données (box scannées, semaine importée, recettes cuisinées), pas du seul
   jour. Sous le vendredi, « Scanner d'autres box » en bouton texte ; sous le vendredi soir,
   « Envoyer les recettes » tant que l'app ne les dépose pas sur le Drive ; sous le samedi, le
-  refus d'un import avec « Choisir un autre fichier ». Toutes les étapes sont dans l'app :
-  plus de pointillé « pas encore dans l'app », ni sa clé.
+  refus d'un import avec « Choisir un autre fichier ». Une fois la semaine importée, « Importer
+  une autre version » et « Renvoyer les recettes » restent là, en boutons texte. Toutes les
+  étapes sont dans l'app : plus de pointillé « pas encore dans l'app », ni sa clé.
 - **Scanner** (lot 2, en place) : aperçu caméra en haut, tout ce qui se touche en bas,
   dernier résultat en grand (« 207 » en displaySmall tabulaire), sélecteur de personnes,
   « Terminer » pleine largeur. L'aperçu pèse 0,85 contre 1 pour le bas (0,6 au-delà de
@@ -139,12 +140,13 @@ est actif) :
   « pour ton usage privé » ; bouton flottant « Lire à voix haute ».
 - **Cuisine** (lot 5 en place, version 0.6 ; synchro au lot 6) : « Ce soir », le plat en
   headlineSmall, personnes et durée ; le doute de Claude en ligne d'état s'il en a un ;
-  « À deux | Seul » (plein pour le choix pris, au contour sinon) ; le plan à deux de ce soir,
+  « À deux | Seul » (`BoutonChoix` : plein pour le choix pris, au contour sinon ; un seul
+  bouton qui change de couleurs, pour que TalkBack garde le focus) ; le plan à deux de ce soir,
   lu par TalkBack rangée par rangée (« Découpe : émincer les oignons ») ; puis « Je suis… »
   (Découpe, Chauffe, retenu par le téléphone) et « Commencer mes tâches ». Seul : une phrase
   (« 8 tâches à la suite : pendant les cuissons, la voix te fait avancer le reste ») et
   « Commencer ». Plus bas, les autres recettes de la semaine (« cuisinée » au bout de la
-  ligne) : un toucher en fait celle de ce soir. Avant l'import, l'état vide au plan d'exemple,
+  ligne) : un toucher en fait celle de ce soir, sur la Semaine aussi. Avant l'import, l'état vide au plan d'exemple,
   « Importer la semaine » et « Essayer la lecture à voix haute ».
 - **Séance** : la tâche en cours en headlineLarge (32 sp), les deux suivantes, l'attente de
   l'autre ou le passage de main comme une rangée à part entière, dans l'ordre où la voix les

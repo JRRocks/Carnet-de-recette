@@ -162,6 +162,7 @@ private fun Application(vm: AccueilViewModel, cuisine: CuisineViewModel, aujourd
                     envoyerAClaude = { cuisine.envoyerAClaude(semaine) },
                     choisirRole = cuisine::choisirRole,
                     choisirMode = cuisine::choisirMode,
+                    choisirCeSoir = { depot.choisirCeSoir(semaine, it) },
                 ),
                 snackbars = snackbars,
             )

@@ -475,6 +475,28 @@ class DepotLocalTest {
     }
 
     @Test
+    fun `le choix de ce soir tient jusqu'a ce que la recette soit faite`() = runBlocking {
+        val depot = depot()
+        depot.importerSemaine(semaine, document(SemaineFactice.travailJson))
+        depot.choisirCeSoir(semaine, 203)
+        assertEquals("la Semaine et la Cuisine voient le même choix", 203, depot.etat(semaine).value.ceSoir?.numero)
+        // Un réimport (nouvelle version de Claude) garde le choix.
+        depot.importerSemaine(semaine, document(SemaineFactice.travailJson))
+        assertEquals(203, depot.etat(semaine).value.ceSoir?.numero)
+
+        depot.marquerCuisinee(semaine, 203)
+        assertNull(depot.etat(semaine).value.choisie)
+        assertEquals("la suivante de Claude", 207, depot.etat(semaine).value.ceSoir?.numero)
+
+        // On peut refaire une recette déjà cuisinée : le choix l'emporte, puis tombe une fois faite.
+        depot.marquerCuisinee(semaine, 207)
+        depot.choisirCeSoir(semaine, 207)
+        assertEquals(207, depot.etat(semaine).value.ceSoir?.numero)
+        depot.marquerCuisinee(semaine, 207)
+        assertNull(depot.etat(semaine).value.ceSoir)
+    }
+
+    @Test
     fun `le fichier pour Claude porte le nom du Drive et le contenu du telephone`() = runBlocking {
         pages["https://www.hellofresh.fr/menus/2026-W44"] = { PageRecue(menu, "u") }
         pages["https://www.hellofresh.fr/recipes/plat-203"] = { PageRecue(recette203, "u") }

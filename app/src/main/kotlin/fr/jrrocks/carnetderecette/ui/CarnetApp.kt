@@ -107,6 +107,8 @@ data class ActionsCarnet(
     val envoyerAClaude: () -> Unit = {},
     val choisirRole: (RoleCuisine) -> Unit = {},
     val choisirMode: (ModeCuisine) -> Unit = {},
+    /** Ce soir, cette recette plutôt que celle que Claude propose. */
+    val choisirCeSoir: (Int) -> Unit = {},
 )
 
 /** À partir de cette largeur (tablette, téléphone en paysage), un rail remplace la barre du bas. */
@@ -321,11 +323,12 @@ private fun boutonDeLaSemaine(etat: EtatCarnet, actions: ActionsCarnet, onOnglet
     val semaine = etat.semaine
     val ceSoir = semaine?.ceSoir
     return when {
-        semaine?.travail != null && ceSoir != null ->
+        ceSoir != null ->
             BoutonAction("Cuisiner la ${ceSoir.numero}", R.drawable.ic_restaurant, "Cuisiner la recette ${ceSoir.numero} ce soir") {
                 onOnglet(Onglet.CUISINE)
             }
-        semaine != null && semaine.boxes.isNotEmpty() && semaine.travail == null ->
+        // Les recettes sont parties chez Claude (box ou fiches) et rien n'est encore à cuisiner.
+        semaine != null && semaine.aEnvoyer && semaine.preparees.isEmpty() ->
             BoutonAction("Importer la semaine", R.drawable.ic_folder, "Importer la semaine préparée par Claude", actions.importer)
         else -> BoutonAction("Scanner les box", R.drawable.ic_document_scanner, "Scanner les box de la semaine") {
             actions.ouvrir(Destination.Scanner(etat.semaineIso))

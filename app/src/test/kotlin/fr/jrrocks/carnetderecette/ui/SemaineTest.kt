@@ -78,6 +78,23 @@ class SemaineTest {
         assertEquals(EtatEtape.FAITE, secondTelephone.getValue("Vendredi").etat)
         assertEquals(listOf("En cuisine"), secondTelephone.values.filter { it.etat == EtatEtape.EN_COURS }.map { it.titre })
 
+        // Le choix de ce soir dans la Cuisine vaut aussi pour la Semaine.
+        assertEquals("Ce soir\u00A0: la 203, environ 14\u00A0min à deux.", etapes(SemaineFactice.etatImporte().copy(choisie = 203)).getValue("En cuisine").detail)
+
+        // Claude n'a rien pu préparer (accès au site rompu, sans fiche) : rien n'est « cuisiné ».
+        val sansRecette = SemaineFactice.etat().copy(travail = SemaineFactice.travail.copy(recettes = emptyList(), message = "Le site ne répondait pas."))
+        val rien = etapes(sansRecette)
+        assertEquals(EtatEtape.EN_COURS, rien.getValue("Vendredi soir").etat)
+        assertEquals(EtatEtape.A_FAIRE, rien.getValue("Samedi").etat)
+        assertEquals(EtatEtape.A_FAIRE, rien.getValue("En cuisine").etat)
+        assertEquals(listOf("Vendredi soir"), rien.values.filter { it.etat == EtatEtape.EN_COURS }.map { it.titre })
+
+        // Le menu cassé : seulement des fiches papier, qui partent chez Claude comme des box.
+        val fiche = fr.jrrocks.carnetderecette.core.fiche.FicheScannee(numero = 207, pages = emptyList(), prisLe = "t")
+        val fiches = etapes(SemaineFactice.etat(avecBoxes = false).let { it.copy(fichier = it.fichier.copy(fiches = listOf(fiche))) })
+        assertEquals("1\u00A0fiche photographiée.", fiches.getValue("Vendredi").detail)
+        assertEquals(EtatEtape.EN_COURS, fiches.getValue("Vendredi soir").etat)
+
         val finie = etapes(SemaineFactice.etatImporte(cuisinees = setOf(207, 203))).getValue("En cuisine")
         assertEquals(EtatEtape.FAITE, finie.etat)
         assertEquals("Toutes les recettes de la semaine sont cuisinées.", finie.detail)

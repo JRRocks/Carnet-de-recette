@@ -58,16 +58,23 @@ class CuisineViewModel(application: Application) : AndroidViewModel(application)
         preferences.mode = mode
     }
 
-    /** Le fichier choisi dans le sélecteur. Un refus s'écrit sur la Semaine, sous son étape. */
+    /**
+     * Le fichier choisi dans le sélecteur. Le résultat s'annonce là où l'on est (Semaine ou
+     * Cuisine) ; un refus reste aussi écrit sur la Semaine, sous l'étape du samedi.
+     */
     fun importer(uri: Uri, semaine: SemaineIso) {
         if (occupe) return
         occupe = true
         viewModelScope.launch {
             try {
                 val lecture = depot.importerSemaine(semaine) { contexte.contentResolver.openInputStream(uri) }
-                if (lecture is LectureSemaine.Lue) {
-                    val n = lecture.fichier.recettes.size
-                    annonce = "Semaine ${semaine.numero} importée\u00A0: " + if (n == 1) "1 recette préparée par Claude." else "$n recettes préparées par Claude."
+                annonce = when (lecture) {
+                    is LectureSemaine.Refusee -> lecture.motif
+                    is LectureSemaine.Lue -> when (val n = lecture.fichier.recettes.size) {
+                        0 -> "Semaine ${semaine.numero} importée, sans recette\u00A0: lis le message de Claude sur la Semaine."
+                        1 -> "Semaine ${semaine.numero} importée\u00A0: 1 recette préparée par Claude."
+                        else -> "Semaine ${semaine.numero} importée\u00A0: $n recettes préparées par Claude."
+                    }
                 }
             } finally {
                 occupe = false

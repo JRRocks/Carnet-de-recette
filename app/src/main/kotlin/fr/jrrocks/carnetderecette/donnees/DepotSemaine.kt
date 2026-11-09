@@ -69,8 +69,17 @@ interface DepotSemaine {
      */
     suspend fun importerSemaine(semaine: SemaineIso, ouvrir: () -> InputStream?): LectureSemaine
 
-    /** La recette [numero] a été cuisinée jusqu'au bout sur ce téléphone ; écrit en arrière-plan. */
+    /**
+     * La recette [numero] a été cuisinée jusqu'au bout sur ce téléphone ; écrit en arrière-plan.
+     * Si c'était la recette choisie pour ce soir, le choix tombe : la suivante de Claude vient.
+     */
     fun marquerCuisinee(semaine: SemaineIso, numero: Int)
+
+    /**
+     * Ce soir, on cuisine [numero] plutôt que la recette que Claude propose ; `null` revient à
+     * sa proposition. Gardé tant que l'app tourne, pour la Semaine comme pour la Cuisine.
+     */
+    fun choisirCeSoir(semaine: SemaineIso, numero: Int?)
 
     /**
      * Le fichier des recettes de [semaine] (« recettes-2026-S44.json »), écrit pour être envoyé
@@ -125,6 +134,8 @@ data class EtatSemaine(
     val importRefuse: String? = null,
     /** Ce que le dernier import a laissé de côté (une recette illisible…), en clair. */
     val remarquesImport: List<String> = emptyList(),
+    /** La recette choisie pour ce soir dans la Cuisine ; `null` : celle que Claude propose. */
+    val choisie: Int? = null,
 ) {
     val boxes: List<BoxScannee> get() = fichier.boxes
     fun recette(numero: Int): Recette? = fichier.recette(fichier.box(numero)?.recetteId)
@@ -138,11 +149,18 @@ data class EtatSemaine(
     /** « 207 · Poulet au miel », ou « Recette 207 » sans titre connu (le menu n'est pas encore lu). */
     fun numeroEtTitre(numero: Int): String = titreConnu(numero)?.let { "$numero · $it" } ?: "Recette $numero"
 
+    /** Il y a de quoi envoyer à Claude : des box scannées, ou des fiches papier photographiées. */
+    val aEnvoyer: Boolean get() = fichier.boxes.isNotEmpty() || fichier.fiches.isNotEmpty()
+
     /** Les recettes préparées par Claude, dans l'ordre où il conseille de les cuisiner. */
     val preparees: List<RecettePreparee> get() = travail?.recettes.orEmpty()
 
-    /** La recette de ce soir : la première que Claude conseille et qu'on n'a pas encore cuisinée. */
-    val ceSoir: RecettePreparee? get() = preparees.firstOrNull { it.numero !in cuisinees }
+    /**
+     * La recette de ce soir : celle qu'on a choisie (même déjà cuisinée : on la refait), sinon
+     * la première que Claude conseille et qu'on n'a pas encore cuisinée.
+     */
+    val ceSoir: RecettePreparee?
+        get() = preparees.firstOrNull { it.numero == choisie } ?: preparees.firstOrNull { it.numero !in cuisinees }
 }
 
 sealed interface ResultatMenu {

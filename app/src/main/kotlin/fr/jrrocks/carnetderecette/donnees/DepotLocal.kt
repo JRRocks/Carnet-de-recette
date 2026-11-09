@@ -333,6 +333,8 @@ class DepotLocal(
         fond.launch {
             verrou.withLock {
                 val etat = flux(semaine)
+                // Le choix de ce soir est fait : la suivante de Claude vient, même pour une recette refaite.
+                etat.update { if (it.choisie == numero) it.copy(choisie = null) else it }
                 if (numero in etat.value.cuisinees) return@withLock
                 val cuisinees = etat.value.cuisinees + numero
                 etat.update { it.copy(cuisinees = cuisinees) }
@@ -341,6 +343,10 @@ class DepotLocal(
                 }
             }
         }
+    }
+
+    override fun choisirCeSoir(semaine: SemaineIso, numero: Int?) {
+        flux(semaine).update { it.copy(choisie = numero) }
     }
 
     override suspend fun fichierPourClaude(semaine: SemaineIso): File {

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import fr.jrrocks.carnetderecette.R
@@ -92,7 +93,7 @@ fun EcranSemaine(etat: EtatCarnet, actions: ActionsCarnet, marges: PaddingValues
         if (drive is EtatDrive.Pret && drive.horsLigne) {
             LigneEtat(R.drawable.ic_cloud_off, DriveCarnet.MOTIF_HORS_LIGNE, TonEtat.NEUTRE, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
         }
-        val etapes = etapesDeLaSemaine(etat)
+        val etapes = remember(etat) { etapesDeLaSemaine(etat) }
         // La clé du pointillé, seulement s'il y en a un sur la ligne.
         if (etapes.any { it.etat == EtatEtape.PAS_ENCORE }) ClePasEncore(Modifier.padding(top = 8.dp, bottom = 8.dp))
         LigneDeTemps(etapes, Modifier.padding(top = 8.dp)) { etape ->
@@ -212,14 +213,16 @@ internal fun LigneDeBox(numero: Int, titre: String, droite: String?, modifier: M
  */
 @Composable
 private fun EnvoiAClaude(semaine: EtatSemaine, actions: ActionsCarnet) {
-    val message = semaine.travail?.message
-    when {
-        message != null -> LigneEtat(R.drawable.ic_info, "Claude\u00A0: $message", TonEtat.INFO, Modifier.padding(top = 12.dp))
-        semaine.travail == null && semaine.boxes.isNotEmpty() -> BoutonCarnet(
-            "Envoyer les recettes",
+    semaine.travail?.message?.let { message ->
+        LigneEtat(R.drawable.ic_info, "Claude\u00A0: $message", TonEtat.INFO, Modifier.padding(top = 12.dp))
+    }
+    // Renvoyer reste possible : une box scannée après l'import, des fiches photographiées en secours.
+    if (semaine.aEnvoyer) {
+        BoutonCarnet(
+            if (semaine.travail == null) "Envoyer les recettes" else "Renvoyer les recettes",
             actions.envoyerAClaude,
             modifier = Modifier.padding(top = 12.dp),
-            sorte = SorteBouton.CONTOUR,
+            sorte = if (semaine.preparees.isEmpty()) SorteBouton.CONTOUR else SorteBouton.TEXTE,
             icone = R.drawable.ic_add_to_drive,
         )
     }
@@ -233,21 +236,31 @@ private fun EnvoiAClaude(semaine: EtatSemaine, actions: ActionsCarnet) {
 @Composable
 private fun ImportDuSamedi(semaine: EtatSemaine, actions: ActionsCarnet) {
     val refus = semaine.importRefuse
-    if (refus == null && semaine.travail == null && semaine.boxes.isEmpty()) {
-        BoutonCarnet(
+    when {
+        refus != null -> LigneEtat(R.drawable.ic_error, refus, TonEtat.ERREUR, Modifier.padding(top = 12.dp)) {
+            BoutonCarnet("Choisir un autre fichier", actions.importer, sorte = SorteBouton.CONTOUR, icone = R.drawable.ic_folder)
+        }
+        // Une semaine à cuisiner : Claude a pu en écrire une autre version (« -v2 »).
+        semaine.preparees.isNotEmpty() -> {
+            if (semaine.remarquesImport.isNotEmpty()) {
+                LigneEtat(R.drawable.ic_info, semaine.remarquesImport.joinToString(" "), TonEtat.INFO, Modifier.padding(top = 12.dp))
+            }
+            BoutonCarnet(
+                "Importer une autre version",
+                actions.importer,
+                modifier = Modifier.padding(top = 4.dp),
+                sorte = SorteBouton.TEXTE,
+                icone = R.drawable.ic_folder,
+            )
+        }
+        // Sans rien à envoyer (le téléphone de l'autre cuisinier), le bouton flottant reste au scan.
+        !semaine.aEnvoyer -> BoutonCarnet(
             "Importer la semaine",
             actions.importer,
             modifier = Modifier.padding(top = 12.dp),
             sorte = SorteBouton.CONTOUR,
             icone = R.drawable.ic_folder,
         )
-    }
-    if (refus != null) {
-        LigneEtat(R.drawable.ic_error, refus, TonEtat.ERREUR, Modifier.padding(top = 12.dp)) {
-            BoutonCarnet("Choisir un autre fichier", actions.importer, sorte = SorteBouton.CONTOUR, icone = R.drawable.ic_folder)
-        }
-    } else if (semaine.remarquesImport.isNotEmpty()) {
-        LigneEtat(R.drawable.ic_info, semaine.remarquesImport.joinToString(" "), TonEtat.INFO, Modifier.padding(top = 12.dp))
     }
 }
 
@@ -257,7 +270,7 @@ private fun CeSoir(semaine: EtatSemaine, recette: RecettePreparee, mode: ModeCui
     Column(Modifier.padding(top = 8.dp)) {
         LigneDeBox(recette.numero, semaine.titre(recette.numero), recette.personnes?.let { "$it\u00A0pers." })
         if (mode == ModeCuisine.A_DEUX) {
-            val plan = Planificateur.planifier(recette, ModeCuisine.A_DEUX)
+            val plan = remember(recette) { Planificateur.planifier(recette, ModeCuisine.A_DEUX) }
             RoleCuisine.entries.forEach { role ->
                 val taches = plan.duRole(role).count { !it.tache.passive }
                 ResumeRole(role, "${role.enUi().libelle}\u00A0: ${pluriel(taches, "tâche", "tâches")} · ${plan.occupation(role)}\u00A0min")
@@ -347,20 +360,22 @@ internal fun etapesDeLaSemaine(etat: EtatCarnet): List<Etape> {
     val vendredi = vendrediDeReference(etat.aujourdHui)
     val samedi = vendredi.plusDays(1)
     val semaine = etat.semaine
-    val boxes = semaine?.boxes.orEmpty()
     val travail = semaine?.travail
+    // Importée mais sans recette : Claude n'a rien pu préparer (accès au site rompu, sans fiche).
+    val rienAPreparer = travail != null && travail.recettes.isEmpty()
     val ceSoir = semaine?.ceSoir
     return listOf(
         etapeDrive(etat.drive),
         when {
-            boxes.isNotEmpty() -> Etape(VENDREDI, EtatEtape.FAITE, if (boxes.size == 1) "1 box scannée." else "${boxes.size} box scannées.", fin = dateCourte(vendredi))
+            semaine != null && semaine.aEnvoyer -> Etape(VENDREDI, EtatEtape.FAITE, ceQuiEstScanne(semaine), fin = dateCourte(vendredi))
             // La semaine est importée sur le téléphone qui n'a rien scanné : c'est fait, ailleurs.
             travail != null -> Etape(VENDREDI, EtatEtape.FAITE, "Box scannées sur l'autre téléphone.", fin = dateCourte(vendredi))
             else -> Etape(VENDREDI, EtatEtape.EN_COURS, "Scanne chaque box à son arrivée\u00A0: l'app lit son numéro et va chercher la recette.", fin = dateCourte(vendredi))
         },
         when {
+            rienAPreparer -> Etape(VENDREDI_SOIR, EtatEtape.EN_COURS, "Claude n'a rien pu préparer\u00A0: suis son message, puis renvoie les recettes.")
             semaine != null && travail != null -> Etape(VENDREDI_SOIR, EtatEtape.FAITE, resumeDuTravail(semaine, etat.mode))
-            boxes.isNotEmpty() -> Etape(
+            semaine != null && semaine.aEnvoyer -> Etape(
                 VENDREDI_SOIR,
                 EtatEtape.EN_COURS,
                 "Envoie les recettes sur le Drive, dans «\u00A0Carnet de recettes\u00A0», puis lance Claude\u00A0: " +
@@ -368,10 +383,10 @@ internal fun etapesDeLaSemaine(etat: EtatCarnet): List<Etape> {
             )
             else -> Etape(VENDREDI_SOIR, EtatEtape.A_FAIRE, "Claude découpe chaque recette en tâches pour vous deux et prépare l'audio.")
         },
-        if (travail != null) {
-            Etape(SAMEDI, EtatEtape.FAITE, "Semaine importée.", fin = dateCourte(samedi))
-        } else {
-            Etape(SAMEDI, EtatEtape.A_FAIRE, "Importe la semaine préparée par Claude, d'un geste.", fin = dateCourte(samedi))
+        when {
+            rienAPreparer -> Etape(SAMEDI, EtatEtape.A_FAIRE, "Importe la nouvelle version de Claude.", fin = dateCourte(samedi))
+            travail != null -> Etape(SAMEDI, EtatEtape.FAITE, "Semaine importée.", fin = dateCourte(samedi))
+            else -> Etape(SAMEDI, EtatEtape.A_FAIRE, "Importe la semaine préparée par Claude, d'un geste.", fin = dateCourte(samedi))
         },
         when {
             ceSoir != null -> {
@@ -379,16 +394,26 @@ internal fun etapesDeLaSemaine(etat: EtatCarnet): List<Etape> {
                 val qui = if (etat.mode == ModeCuisine.A_DEUX) "à deux" else "seul"
                 Etape(EN_CUISINE, EtatEtape.EN_COURS, "Ce soir\u00A0: la ${ceSoir.numero}, environ ${dureeEnClair(plan.duree)} $qui.")
             }
-            travail != null -> Etape(EN_CUISINE, EtatEtape.FAITE, "Toutes les recettes de la semaine sont cuisinées.")
+            travail != null && !rienAPreparer -> Etape(EN_CUISINE, EtatEtape.FAITE, "Toutes les recettes de la semaine sont cuisinées.")
             else -> Etape(EN_CUISINE, EtatEtape.A_FAIRE, "Chacun suit ses tâches, à l'écran et à l'oreille.")
         },
     )
 }
 
+/** « 2 box scannées. », « 1 fiche photographiée. », « 2 box scannées, 1 fiche photographiée. » */
+private fun ceQuiEstScanne(semaine: EtatSemaine): String {
+    val boxes = semaine.boxes.size
+    val fiches = semaine.fichier.fiches.size
+    val parties = listOfNotNull(
+        boxes.takeIf { it > 0 }?.let { if (it == 1) "1\u00A0box scannée" else "$it\u00A0box scannées" },
+        fiches.takeIf { it > 0 }?.let { if (it == 1) "1\u00A0fiche photographiée" else "$it\u00A0fiches photographiées" },
+    )
+    return parties.joinToString(", ").replaceFirstChar { it.uppercase() } + "."
+}
+
 /** « Claude a préparé les 6 recettes : 112 tâches pour vous deux, 105 segments à écouter. » */
 private fun resumeDuTravail(semaine: EtatSemaine, mode: ModeCuisine): String {
     val recettes = semaine.preparees
-    if (recettes.isEmpty()) return "Claude n'a pas pu préparer la semaine."
     val taches = recettes.sumOf { it.taches.size }
     val segments = recettes.sumOf { it.segments.size }
     val quoi = if (recettes.size == 1) "la recette" else "les ${recettes.size} recettes"

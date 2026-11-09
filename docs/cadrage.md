@@ -236,7 +236,17 @@ recettes ; une autre semaine ; une version plus récente que l'app) et indulgent
 une recette, une tâche ou un segment illisible est laissé de côté et signalé sous l'étape du
 samedi ; une valeur inconnue reprend sa valeur par défaut ; les identifiants en double et les
 dépendances inconnues sont remis d'aplomb. Le fichier est gardé tel quel sur le téléphone et
-relu à chaque lancement.
+relu à chaque lancement ; une semaine dépasse rarement une dizaine de box et une recette une
+quarantaine de tâches, d'où des plafonds (40 recettes, 200 tâches et 400 segments par recette)
+qui gardent l'app réactive devant un fichier aberrant. Une autre version (« -v2 ») s'importe
+à tout moment, et les recettes se renvoient (une box scannée après l'import).
+
+**Mode dégradé** (§ 9) : le skill prépare chaque box à partir de sa recette lue ou, à défaut,
+de sa **fiche papier** (texte brut de l'OCR, qu'il structure lui-même) ; une box sans l'une ni
+l'autre passe la semaine en `partiel`. Sans rien du tout, il écrit une semaine `degrade` sans
+recette : la Semaine montre son message, propose de renvoyer les recettes une fois les fiches
+photographiées, puis d'importer la nouvelle version. Des fiches seules (menu cassé, aucune box
+scannée) s'envoient comme des box.
 
 ## 7. Le planificateur
 
@@ -272,8 +282,10 @@ relu à chaque lancement.
   - le plan à deux montre le passage de main d'un ingrédient préparé juste avant la tâche qui
     en a besoin ; une dépendance entre deux tâches de cuisson n'est qu'un ordre ;
   - la recette est **cuisinée** quand un téléphone finit sa séance ; « ce soir » passe à la
-    suivante. Le hachoir : les conseils de Claude, dans ses segments ; la cuve partagée entre
-    deux tâches n'est pas planifiée.
+    suivante. On peut en choisir une autre dans la Cuisine (même déjà cuisinée, pour la
+    refaire) : le choix vaut aussi pour la Semaine et tombe une fois la recette faite. Le
+    hachoir : les conseils de Claude, dans ses segments ; la cuve partagée entre deux tâches
+    n'est pas planifiée.
   - Limite connue, seul : un minuteur lancé avant de passer à d'autres tâches sonne à
     l'heure, mais la séance n'avance pas toute seule jusqu'au segment qui l'attendait ; on
     dit « suivant ».
@@ -441,6 +453,6 @@ SourceRecette
 | 2 | **Les outils** (priorité du 2026-10-27), sans Drive : sonde, menu de la semaine et pages recettes, stockage sur le téléphone, images en cache, scan des étiquettes (`scan-multimode` adapté), scan de la fiche papier, fiche recette, lecture à voix haute par étapes, commandes vocales, minuteurs. Dépôt sur Drive une fois branché | 🟡 Codé le 2026-10-27 (version 0.3), relu (relecture adversariale). Reste : dépôt sur Drive, puis un vrai vendredi et un essai en cuisine sur téléphone |
 | 3 | Skill Cowork du vendredi soir (sans accès web) : confirmation, tâches, hachoir, segments audio, fichier de semaine | 🟡 Aperçu de la semaine 44 joué le 2026-11-06 (six box, trois modèles, relecture à l'aveugle) ; skill écrit et versionné le 2026-11-08 (`cowork/carnet-semaine/`), format v1 figé. Reste : un vrai vendredi soir dans Cowork |
 | 4 | Import du samedi (sélecteur), catalogue de toutes les semaines, bandeau mode dégradé | 🟡 Import codé le 2026-11-08 (version 0.6) : sélecteur, refus en clair sous l'étape du samedi, envoi des recettes par le partage d'Android en attendant le dépôt sur Drive. Reste : catalogue de toutes les semaines |
-| 5 | Mode cuisine : planificateur seul ou à deux, hachoir, segments audio de Cowork | 🟡 Codé le 2026-11-08 (version 0.6) : planificateur (§ 7), plan à deux, seul, « Je suis… », séance de chaque cuisinier avec les segments de Claude. Reste : un vrai repas à deux |
+| 5 | Mode cuisine : planificateur seul ou à deux, hachoir, segments audio de Cowork | 🟡 Codé le 2026-11-08 (version 0.6) : planificateur (§ 7), plan à deux, seul, « Je suis… », séance de chaque cuisinier avec les segments de Claude. Relu le 2026-11-09 (relecture indépendante, sept défauts corrigés, version 0.7). Reste : un vrai repas à deux |
 | 6 | Synchro des deux téléphones | — |
 | Réservé | Moteurs du mode dégradé dans l'app (sauf la fiche papier, codée au lot 2), autres sites de recettes | Seulement si l'accès HelloFresh tombe |
