@@ -151,29 +151,74 @@ class MiseAJourTest {
             MiseAJour.publicationDuLancement(
                 interrogation = { commencee.complete(Unit); awaitCancellation() },
                 installee = { 21L },
+                maintenant = 0L,
             )
         }
         commencee.await()
         premiere.cancel()
         premiere.join()
 
-        val seconde = MiseAJour.publicationDuLancement(interrogation = { publication }, installee = { 21L })
+        val seconde = MiseAJour.publicationDuLancement(interrogation = { publication }, installee = { 21L }, maintenant = 1L)
 
         assertEquals(22L, seconde?.versionCode)
         MiseAJour.oublier()
     }
 
-    /** Une panne (réseau, GitHub) est retenue : on ne réinterroge pas à chaque écran. */
-    @Test
-    fun `un echec d interrogation est retenu jusqu au prochain processus`() = runBlocking {
-        MiseAJour.oublier()
-        val publication = MiseAJour.lirePublication(reponse(actif("carnet-de-recette-13.21-maj-en-ligne-22.apk")))
+    private fun version(code: Long) = MiseAJour.lirePublication(reponse(actif("carnet-de-recette-0.$code-$code.apk")))
 
-        val premiere = MiseAJour.publicationDuLancement(interrogation = { error("GitHub en panne") }, installee = { 21L })
-        val seconde = MiseAJour.publicationDuLancement(interrogation = { publication }, installee = { 21L })
+    /**
+     * Variante du Carnet (2026-11-09) : chaque ouverture redemande la dernière version, sauf
+     * dans la minute qui suit une réponse (API anonyme limitée à 60 requêtes par heure).
+     */
+    @Test
+    fun `chaque ouverture redemande la derniere version, sauf dans la minute`() = runBlocking {
+        MiseAJour.oublier()
+        var interrogations = 0
+        var enLigne = version(22)
+        suspend fun ouvrir(a: Long) = MiseAJour.publicationDuLancement(
+            interrogation = { interrogations++; enLigne },
+            installee = { 21L },
+            maintenant = a,
+        )
+
+        assertEquals(22L, ouvrir(0L)?.versionCode)
+        // Une version 23 paraît ; l'app rouverte trente secondes plus tard garde la réponse.
+        enLigne = version(23)
+        assertEquals(22L, ouvrir(30_000L)?.versionCode)
+        assertEquals(1, interrogations)
+        // Une minute après la réponse, l'ouverture suivante la voit.
+        assertEquals(23L, ouvrir(MiseAJour.INTERVALLE_MIN_MS)?.versionCode)
+        assertEquals(2, interrogations)
+        MiseAJour.oublier()
+    }
+
+    /** Une panne n'est pas une réponse : l'ouverture suivante réessaie, sans attendre la minute. */
+    @Test
+    fun `un echec n est pas retenu, l ouverture suivante reessaie`() = runBlocking {
+        MiseAJour.oublier()
+        val publication = version(22)
+
+        val premiere = MiseAJour.publicationDuLancement(interrogation = { error("GitHub en panne") }, installee = { 21L }, maintenant = 0L)
+        val seconde = MiseAJour.publicationDuLancement(interrogation = { publication }, installee = { 21L }, maintenant = 1_000L)
 
         assertNull(premiere)
-        assertNull("la réponse est retenue pour tout le processus", seconde)
+        assertEquals(22L, seconde?.versionCode)
+        MiseAJour.oublier()
+    }
+
+    /** Hors ligne à la réouverture : la version déjà trouvée reste proposée. */
+    @Test
+    fun `une version trouvee reste proposee quand GitHub ne repond plus`() = runBlocking {
+        MiseAJour.oublier()
+        MiseAJour.publicationDuLancement(interrogation = { version(22) }, installee = { 21L }, maintenant = 0L)
+
+        val horsLigne = MiseAJour.publicationDuLancement(
+            interrogation = { throw java.net.UnknownHostException("api.github.com") },
+            installee = { 21L },
+            maintenant = 10 * MiseAJour.INTERVALLE_MIN_MS,
+        )
+
+        assertEquals(22L, horsLigne?.versionCode)
         MiseAJour.oublier()
     }
 }

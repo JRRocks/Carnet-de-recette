@@ -12,7 +12,7 @@ aux Actions (`GITHUB_TOKEN`) suffit.
 |---|---|
 | `.github/workflows/apercu.yml` | À chaque push qui touche l'app sur une branche de travail : tests, puis APK d'essai signé de la clé release, attaché à la **pré-version** `apercu-<versionName>` |
 | `.github/workflows/version.yml` | **Sur feu vert explicite seulement** : APK release signé attaché à la version `v<versionName>` |
-| `app/src/main/kotlin/…/maj/MiseAJour.kt` | Au lancement, interroge `/releases/latest` et propose la mise à jour si son `versionCode` est plus grand |
+| `app/src/main/kotlin/…/maj/MiseAJour.kt` | À chaque ouverture de l'app (lancement ou retour au premier plan, au plus une fois par minute), interroge `/releases/latest` et propose la mise à jour si son `versionCode` est plus grand |
 
 `/releases/latest` ignore les pré-versions : un aperçu n'est **jamais** proposé en mise à
 jour. Seul `version.yml` touche aux téléphones déjà installés.
@@ -89,7 +89,7 @@ la même clé que les versions publiées, il s'installe par-dessus et garde les 
 
 ## Publier (feu vert explicite seulement)
 
-L'APK publié est proposé à **tous** les téléphones au lancement suivant. On ne publie donc
+L'APK publié est proposé à **tous** les téléphones à leur ouverture suivante. On ne publie donc
 qu'avec l'accord explicite de l'utilisateur, donné pour cette version-là.
 
 1. Vérifier que la tête de la branche est bien la version essayée en aperçu.

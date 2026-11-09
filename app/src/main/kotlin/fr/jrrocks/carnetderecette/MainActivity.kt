@@ -10,6 +10,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarDuration
@@ -53,6 +54,9 @@ class MainActivity : ComponentActivity() {
      */
     private var aujourdHui by mutableStateOf(LocalDate.now())
 
+    /** Le Drive et la mise à jour en ligne : le même ViewModel que celui de l'écran. */
+    private val accueil: AccueilViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // La barre bleu nuit passe sous la barre d'état : icônes claires, en clair comme en sombre.
@@ -61,9 +65,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             // Les images du site déjà téléchargées, pour tous les écrans.
             CompositionLocalProvider(LocalImagesDuSite provides depot::imageLocale) {
-                ThemeCarnet { Application(viewModel(), viewModel(), aujourdHui) }
+                ThemeCarnet { Application(accueil, viewModel(), aujourdHui) }
             }
         }
+    }
+
+    /** Chaque ouverture (lancement, retour au premier plan) redemande la dernière version publiée. */
+    override fun onStart() {
+        super.onStart()
+        accueil.auPremierPlan()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Une rotation recrée l'écran sans quitter l'app : ce n'est pas une nouvelle ouverture.
+        if (!isChangingConfigurations) accueil.enArrierePlan()
     }
 
     override fun onResume() {

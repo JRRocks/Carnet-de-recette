@@ -175,8 +175,10 @@ dialogue : rien n'interrompt quelqu'un en pleine cuisine.
   reste faite, le compte reste affiché, rien ne clignote.
 - La mise à jour : « La version X est prête » avec « Plus tard » et « Mettre à jour » ; pendant
   le téléchargement, une barre de progression et le pourcentage (annoncés une fois à TalkBack,
-  pas à chaque pour cent). « Plus tard » efface la ligne de la Semaine jusqu'au prochain
-  lancement ; Réglages propose toujours la version. Réglages écrit « 0.2 installée », jamais
+  pas à chaque pour cent). L'app redemande la dernière version à **chaque ouverture**
+  (lancement ou retour au premier plan, au plus une fois par minute). « Plus tard » efface la
+  ligne de la Semaine pour cette version tant que l'app reste en mémoire ; une version plus
+  récente se repropose dès qu'elle paraît, et Réglages propose toujours la version. Réglages écrit « 0.2 installée », jamais
   « à jour » : sans réponse de GitHub, l'app ne peut pas le savoir. Jamais pendant une séance,
   jamais dans le Scanner.
 - Les causes s'écrivent en français : jamais le message brut d'une exception.

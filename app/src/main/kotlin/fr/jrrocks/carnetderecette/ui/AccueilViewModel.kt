@@ -54,13 +54,38 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
     private var publication: MiseAJour.Publication? = null
     private var branchement: Job? = null
     private var telechargement: Job? = null
+    private var verification: Job? = null
+
+    /** L'app vient de s'ouvrir, ou de revenir au premier plan : la dernière version est à revoir. */
+    private var aRevoir = true
 
     init {
-        viewModelScope.launch {
-            publication = MiseAJour.publicationDuLancement(contexte)
-            publication?.let { maj = EtatMiseAJour.Disponible(it.versionNom) }
-        }
         preferences.compte?.let { verifierAuLancement(it) }
+    }
+
+    // ── Ouvertures ──────────────────────────────────────────────────────────────
+
+    /**
+     * L'app s'ouvre ou revient au premier plan (`MainActivity.onStart`) : la dernière version
+     * publiée sur GitHub est redemandée. Une rotation d'écran ne passe pas par [enArrierePlan] :
+     * ce n'est pas une ouverture.
+     */
+    fun auPremierPlan() {
+        if (!aRevoir || verification?.isActive == true) return
+        aRevoir = false
+        verification = viewModelScope.launch {
+            val trouvee = MiseAJour.publicationDuLancement(contexte) ?: return@launch
+            val nouvelle = fusionnerMiseAJour(maj, trouvee.versionNom)
+            if (nouvelle != maj) {
+                publication = trouvee
+                maj = nouvelle
+            }
+        }
+    }
+
+    /** L'app passe en arrière-plan pour de bon (pas une rotation) : la prochaine ouverture revérifie. */
+    fun enArrierePlan() {
+        aRevoir = true
     }
 
     fun annonceVue() {
@@ -155,8 +180,9 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
     // ── Mise à jour en ligne ────────────────────────────────────────────────────
 
     /**
-     * « Plus tard » : la Semaine n'en parle plus jusqu'au prochain lancement (rotation
-     * comprise), mais Réglages la propose toujours.
+     * « Plus tard » : la Semaine ne parle plus de cette version tant que l'app reste ouverte en
+     * mémoire (rotations et retours au premier plan compris), mais Réglages la propose
+     * toujours ; une version plus récente se propose dès qu'elle paraît.
      */
     fun ecarterMiseAJour() {
         maj = when (val courante = maj) {
@@ -190,6 +216,19 @@ class AccueilViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
+}
+
+/**
+ * Ce que devient la ligne de mise à jour quand GitHub annonce [trouvee] (le nom de la version
+ * à proposer). Rien ne change pendant un téléchargement ni pendant l'autorisation d'installer :
+ * on ne dérange pas un geste en cours. « Plus tard » et un échec tiennent pour cette version ;
+ * une version plus récente se propose à nouveau.
+ */
+internal fun fusionnerMiseAJour(courante: EtatMiseAJour, trouvee: String): EtatMiseAJour = when (courante) {
+    is EtatMiseAJour.Telechargement, is EtatMiseAJour.AAutoriser -> courante
+    is EtatMiseAJour.Ecartee -> if (courante.versionNom == trouvee) courante else EtatMiseAJour.Disponible(trouvee)
+    is EtatMiseAJour.Echec -> if (courante.versionNom == trouvee) courante else EtatMiseAJour.Disponible(trouvee)
+    is EtatMiseAJour.Disponible, EtatMiseAJour.Aucune -> EtatMiseAJour.Disponible(trouvee)
 }
 
 /** Les refus que `MiseAJour` écrit lui-même, en français. */

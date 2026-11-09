@@ -421,7 +421,7 @@ SourceRecette
 |---|---|---|---|
 | `scan-multimode` (mode OCR) | ✅ OCR | Scan des étiquettes | Remonter les éléments avec taille et position ; pas de `RegexRuleEngine` |
 | `google-drive-appdata` | ✅ | Connexion Google, dépôt des recettes et des scans, profil, sessions | Portée `drive.file` et dossier visible au lieu d'`appDataFolder` |
-| `maj-auto-github` | ✅ | Mise à jour de l'APK | Dépôt de code déjà public : les Releases peuvent être publiées directement ici |
+| `maj-auto-github` | ✅ | Mise à jour de l'APK | Dépôt de code déjà public : les Releases peuvent être publiées directement ici. Interroge GitHub à **chaque ouverture** (lancement ou retour au premier plan, au plus une fois par minute) plutôt qu'une fois par processus, à la demande du 2026-11-09 ; un échec n'empêche pas l'ouverture suivante de réessayer |
 | Capteur de plantage (Popote, 🔬 candidat) | — | Rapport de plantage sans câble | À extraire d'abord dans la Library |
 
 > Le catalogue de la Library (`INDEX.md`, fiches) n'est **pas encore fusionné dans `main`**.

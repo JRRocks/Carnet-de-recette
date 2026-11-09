@@ -3,6 +3,7 @@ package fr.jrrocks.carnetderecette.maj
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
@@ -39,6 +40,11 @@ import kotlinx.serialization.json.jsonPrimitive
  * interroge **sans jeton**. `/releases/latest` ignore les pré-versions : un aperçu
  * (`apercu-<versionName>`, `.github/workflows/apercu.yml`) n'est donc jamais proposé.
  *
+ * **Quand.** À **chaque ouverture** de l'app (lancement, retour au premier plan : variante du
+ * Carnet, 2026-11-09, demandée par l'utilisateur), pas seulement une fois par processus comme
+ * dans Popote : Android garde souvent l'app en mémoire des jours entiers, et la réouvrir ne
+ * relançait rien. Deux ouvertures à moins d'une minute partagent la même réponse.
+ *
  * **Ce qui décide qu'une version est « plus récente ».** Le `versionCode`, porté par le nom
  * du fichier attaché à la version — `carnet-de-recette-<versionName>-<versionCode>.apk` — que
  * la CI fabrique à partir de `app/build.gradle.kts`. Un APK sans ce suffixe est ignoré.
@@ -58,6 +64,13 @@ object MiseAJour {
     // silence que faire patienter.
     private const val DELAI_CONNEXION_MS = 10_000
     private const val DELAI_LECTURE_MS = 10_000
+
+    /**
+     * Deux ouvertures plus rapprochées partagent la même réponse : l'API anonyme de GitHub
+     * accepte 60 requêtes par heure et par adresse, que les deux téléphones du foyer partagent
+     * derrière la même box.
+     */
+    internal const val INTERVALLE_MIN_MS = 60_000L
 
     /** Le téléchargement, lui, a tout son temps : l'écran affiche sa progression. */
     private const val DELAI_LECTURE_APK_MS = 60_000
@@ -92,54 +105,61 @@ object MiseAJour {
     // ── Interrogation ───────────────────────────────────────────────────────────
 
     private val verrou = Mutex()
-    private var interrogee = false
+
+    /** L'instant (horloge depuis le démarrage) de la dernière réponse de GitHub ; `null` : jamais. */
+    private var interrogeeA: Long? = null
     private var retenue: Publication? = null
 
     /**
-     * La version à proposer, ou `null` s'il n'y a rien à proposer.
-     *
-     * **Une seule fois par processus**, quoi qu'il arrive : la réponse est retenue, si bien
-     * qu'une rotation d'écran, un retour d'arrière-plan ou une recomposition ne relancent
-     * pas la requête. C'est aussi ce qui fait qu'un refus (« Plus tard ») tient jusqu'au
-     * prochain lancement, sans qu'on ait à ranger quoi que ce soit sur disque.
+     * La version à proposer, ou `null` s'il n'y a rien à proposer. À appeler à **chaque
+     * ouverture** de l'app : elle interroge GitHub, sauf si la dernière réponse a moins d'une
+     * minute ([INTERVALLE_MIN_MS]) ; une rotation d'écran, elle, n'est pas une ouverture
+     * (`AccueilViewModel`).
      *
      * **Silencieuse en cas d'échec.** Pas de réseau, GitHub en panne, dépôt momentanément
-     * inaccessible : l'application se lance normalement et n'en dit rien. Personne n'a à
-     * lire un message d'erreur sur une mise à jour qu'il n'a pas demandée.
+     * inaccessible : l'application s'ouvre normalement et n'en dit rien. Personne n'a à lire un
+     * message d'erreur sur une mise à jour qu'il n'a pas demandée. L'échec ne compte pas
+     * comme une réponse : la prochaine ouverture réessaie, et une version déjà trouvée reste
+     * proposée.
      */
     suspend fun publicationDuLancement(contexte: Context): Publication? =
-        publicationDuLancement(interrogation = { interroger() }, installee = { versionInstallee(contexte) })
+        publicationDuLancement(
+            interrogation = { interroger() },
+            installee = { versionInstallee(contexte) },
+            maintenant = SystemClock.elapsedRealtime(),
+        )
 
     /**
      * Le cœur de [publicationDuLancement], sans réseau ni `PackageManager`, pour les tests.
      *
      * **Patch** (relevé dans le Carnet, reporté dans la Library le 2026-10-26, fiche
-     * `maj-auto-github`) : la version d'origine
-     * enveloppait l'appel dans `runCatching`, qui attrape aussi l'**annulation**. Un écran
-     * quitté ou recréé pendant la requête laissait alors `interrogee` à `true` et `retenue` à
-     * `null` : plus aucune mise à jour proposée jusqu'à la mort du processus. Une annulation
-     * rend maintenant la main sans rien retenir, et l'appel suivant interroge à nouveau.
+     * `maj-auto-github`) : la version d'origine enveloppait l'appel dans `runCatching`, qui
+     * attrape aussi l'**annulation**. Un écran quitté ou recréé pendant la requête laissait
+     * alors la réponse vide retenue jusqu'à la mort du processus. Une annulation rend
+     * maintenant la main sans rien retenir, et l'appel suivant interroge à nouveau.
      */
     internal suspend fun publicationDuLancement(
         interrogation: suspend () -> Publication?,
         installee: () -> Long,
+        maintenant: Long,
     ): Publication? = verrou.withLock {
-        if (!interrogee) {
-            retenue = try {
-                aProposer(interrogation(), installee())
+        val derniere = interrogeeA
+        if (derniere == null || maintenant - derniere >= INTERVALLE_MIN_MS) {
+            try {
+                retenue = aProposer(interrogation(), installee())
+                interrogeeA = maintenant
             } catch (annulation: CancellationException) {
                 throw annulation
             } catch (echec: Exception) {
-                null
+                // Rien de retenu : la prochaine ouverture réessaie.
             }
-            interrogee = true
         }
         retenue
     }
 
     /** Pour les tests seulement : oublie la réponse retenue, comme un nouveau processus. */
     internal suspend fun oublier() = verrou.withLock {
-        interrogee = false
+        interrogeeA = null
         retenue = null
     }
 
