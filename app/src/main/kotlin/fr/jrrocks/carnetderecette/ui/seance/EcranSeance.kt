@@ -34,17 +34,23 @@ import fr.jrrocks.carnetderecette.R
 import fr.jrrocks.carnetderecette.audio.EtatEcoute
 import fr.jrrocks.carnetderecette.audio.EtatVoix
 import fr.jrrocks.carnetderecette.audio.Voix
+import fr.jrrocks.carnetderecette.core.cuisine.RoleCuisine
+import fr.jrrocks.carnetderecette.core.cuisine.SegmentsDuCuisinier
 import fr.jrrocks.carnetderecette.core.recette.Recette
 import fr.jrrocks.carnetderecette.core.recette.RecetteExemple
 import fr.jrrocks.carnetderecette.donnees.DepotLocal
 import fr.jrrocks.carnetderecette.ui.Destination
+import fr.jrrocks.carnetderecette.ui.Qui
 import fr.jrrocks.carnetderecette.ui.composants.BoutonCarnet
 import fr.jrrocks.carnetderecette.ui.composants.EcranPousse
 import fr.jrrocks.carnetderecette.ui.composants.LigneEtat
 import fr.jrrocks.carnetderecette.ui.composants.SorteBouton
 import fr.jrrocks.carnetderecette.ui.composants.TonEtat
 
-/** La séance lue à voix haute (cadrage § 8), en plein écran, écran allumé. */
+/**
+ * La séance lue à voix haute (cadrage § 8), en plein écran, écran allumé : les étapes d'une
+ * recette, ou les segments que Claude a préparés pour l'un des cuisiniers (lot 5).
+ */
 @Composable
 fun EcranSeance(destination: Destination.Seance, onRetour: () -> Unit, ouvrir: (Destination) -> Unit) {
     val numero = destination.numero
@@ -55,30 +61,67 @@ fun EcranSeance(destination: Destination.Seance, onRetour: () -> Unit, ouvrir: (
     }
     val depot = DepotLocal.de(LocalContext.current)
     val etat by depot.etat(destination.semaine).collectAsState()
+    if (destination.qui != Qui.RECETTE) {
+        val preparee = etat.travail?.recette(numero)
+        if (preparee == null) {
+            // Semaine effacée ou remplacée entre-temps : la Cuisine sait la réimporter.
+            Absente("Box $numero", "La semaine préparée par Claude n'est plus sur ce téléphone\u00A0: importe-la à nouveau.", onRetour)
+            return
+        }
+        val qui = destination.qui
+        val lus = remember(preparee, qui) {
+            when (qui) {
+                Qui.DECOUPE -> SegmentsDuCuisinier.aDeux(preparee, RoleCuisine.DECOUPE)
+                Qui.CHAUFFE -> SegmentsDuCuisinier.aDeux(preparee, RoleCuisine.CHAUFFE)
+                else -> SegmentsDuCuisinier.seul(preparee)
+            }
+        }
+        // À deux, le titre dit quel téléphone est lequel ; seul, le nom du plat.
+        val titre = when (qui) {
+            Qui.DECOUPE -> "$numero · Découpe"
+            Qui.CHAUFFE -> "$numero · Chauffe"
+            else -> etat.numeroEtTitre(numero)
+        }
+        Seance("seance-${destination.semaine}-$numero-${qui.name}", onRetour) { application ->
+            SeanceViewModel(application, titre, lus.segments, lus.textes, terminee = { depot.marquerCuisinee(destination.semaine, numero) })
+        }
+        return
+    }
     val recette = etat.recette(numero)
     if (recette != null) {
         SeanceDeRecette(recette, onRetour)
     } else {
         // Données effacées entre-temps : on renvoie vers la fiche, qui sait relire la page.
-        EcranPousse("Box $numero", onRetour) { marges ->
-            Column(Modifier.padding(marges).padding(16.dp)) {
-                LigneEtat(R.drawable.ic_help, "La recette de la box $numero n'est pas lue sur ce téléphone.", TonEtat.INFO) {
-                    BoutonCarnet("Ouvrir la fiche", { ouvrir(Destination.Recette(destination.semaine, numero)) }, sorte = SorteBouton.CONTOUR)
-                }
-            }
+        Absente("Box $numero", "La recette de la box $numero n'est pas lue sur ce téléphone.", onRetour) {
+            BoutonCarnet("Ouvrir la fiche", { ouvrir(Destination.Recette(destination.semaine, numero)) }, sorte = SorteBouton.CONTOUR)
+        }
+    }
+}
+
+/** Ce qu'il fallait lire n'est plus sur le téléphone : on le dit, avec le geste qui répare. */
+@Composable
+private fun Absente(titre: String, texte: String, onRetour: () -> Unit, action: (@Composable () -> Unit)? = null) {
+    EcranPousse(titre, onRetour) { marges ->
+        Column(Modifier.padding(marges).padding(16.dp)) {
+            LigneEtat(R.drawable.ic_help, texte, TonEtat.INFO, actions = action)
         }
     }
 }
 
 /**
- * La séance d'une [recette] donnée : c'est l'appelant qui la trouve (la recette d'exemple, ou
- * celle d'une box, lue dans le dépôt de la semaine).
+ * La séance d'une [recette] donnée, étape par étape : c'est l'appelant qui la trouve (la
+ * recette d'exemple, ou celle d'une box, lue dans le dépôt de la semaine).
  */
 @Composable
-fun SeanceDeRecette(recette: Recette, onRetour: () -> Unit) {
+fun SeanceDeRecette(recette: Recette, onRetour: () -> Unit) =
+    Seance("seance-${recette.id}", onRetour) { application -> SeanceViewModel(application, recette) }
+
+/** La séance dont le ViewModel, rangé sous [cle], est construit par [fabrique] à la première ouverture. */
+@Composable
+private fun Seance(cle: String, onRetour: () -> Unit, fabrique: (Application) -> SeanceViewModel) {
     val contexte = LocalContext.current
     val activite = remember(contexte) { contexte.activite() }
-    val vm = seanceViewModel(recette, activite)
+    val vm = seanceViewModel(cle, activite, fabrique)
 
     // Garder l'écran allumé le temps de la séance seulement : les mains sont occupées. La recette
     // finie, le téléphone posé pendant le repas s'éteint comme d'habitude, sauf si un minuteur
@@ -143,7 +186,7 @@ fun SeanceDeRecette(recette: Recette, onRetour: () -> Unit) {
  * quitter l'écran le libère (voix, micro, minuteurs).
  */
 @Composable
-private fun seanceViewModel(recette: Recette, activite: Activity?): SeanceViewModel {
+private fun seanceViewModel(cle: String, activite: Activity?, fabrique: (Application) -> SeanceViewModel): SeanceViewModel {
     val application = LocalContext.current.applicationContext as Application
     val hote = viewModel<MagasinSeance>()
     val proprietaire = remember(hote) {
@@ -156,8 +199,8 @@ private fun seanceViewModel(recette: Recette, activite: Activity?): SeanceViewMo
     }
     return viewModel(
         viewModelStoreOwner = proprietaire,
-        key = "seance-${recette.id}",
-        factory = viewModelFactory { initializer { SeanceViewModel(application, recette) } },
+        key = cle,
+        factory = viewModelFactory { initializer { fabrique(application) } },
     )
 }
 

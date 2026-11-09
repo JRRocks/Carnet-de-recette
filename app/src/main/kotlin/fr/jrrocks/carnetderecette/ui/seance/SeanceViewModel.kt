@@ -23,6 +23,7 @@ import fr.jrrocks.carnetderecette.core.audio.Declencheur
 import fr.jrrocks.carnetderecette.core.audio.Effet
 import fr.jrrocks.carnetderecette.core.audio.LecteurSegments
 import fr.jrrocks.carnetderecette.core.audio.Minuteurs
+import fr.jrrocks.carnetderecette.core.audio.SegmentAudio
 import fr.jrrocks.carnetderecette.core.audio.SegmentsDeRecette
 import fr.jrrocks.carnetderecette.core.recette.Recette
 import kotlinx.coroutines.Job
@@ -35,14 +36,30 @@ import kotlinx.coroutines.launch
  * qui s'est passé. Aucune IA, rien sur le réseau : tout marche hors ligne si le téléphone a une
  * voix française.
  *
+ * Elle lit des [segments] : ceux que Claude a préparés pour un cuisinier, ou, à défaut, les
+ * étapes d'une recette. [textes] : ce que l'écran affiche pour chacun (à défaut, ce que dit la
+ * voix). [terminee] est appelé quand le dernier segment est fait : la recette est cuisinée.
+ *
  * Dans un ViewModel pour survivre à une rotation : la voix ne se coupe pas et les minuteurs
  * continuent. Il vit le temps de l'écran ([MagasinSeance]) ; [onCleared] libère tout.
  */
-class SeanceViewModel(application: Application, private val recette: Recette) :
-    AndroidViewModel(application), Voix.Suivi, Ecoute.Suivi {
+class SeanceViewModel(
+    application: Application,
+    private val titre: String,
+    segments: List<SegmentAudio>,
+    private val textes: Map<String, String>,
+    private val terminee: () -> Unit = {},
+) : AndroidViewModel(application), Voix.Suivi, Ecoute.Suivi {
 
-    private val lecteur = LecteurSegments(SegmentsDeRecette.de(recette))
-    private val textes = recette.etapes.associate { SegmentsDeRecette.idDe(it) to it.texte }
+    /** Les étapes d'une recette, une par segment : la fiche et la recette d'exemple. */
+    constructor(application: Application, recette: Recette) : this(
+        application,
+        recette.titre,
+        SegmentsDeRecette.de(recette),
+        recette.etapes.associate { SegmentsDeRecette.idDe(it) to it.texte },
+    )
+
+    private val lecteur = LecteurSegments(segments)
     private val minuteurs = Minuteurs()
 
     private var etatVoix = EtatVoix.PREPARATION
@@ -169,8 +186,12 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
                 }
                 is Effet.AnnulerMinuteur -> minuteurs.annuler(effet.segmentId)
                 is Effet.Sonner -> sonnerie.sonner(salvesDeSonnerie(effets, voixPeutParler()))
-                // L'écran lit la fin dans l'état du lecteur ; le micro, lui, se ferme.
-                Effet.Terminee -> couperMicroEnFin()
+                // L'écran lit la fin dans l'état du lecteur ; le micro, lui, se ferme. Une séance
+                // vide finit dès l'ouverture : elle n'a rien fait cuire.
+                Effet.Terminee -> {
+                    couperMicroEnFin()
+                    if (lecteur.etat.segments.isNotEmpty()) terminee()
+                }
             }
         }
     }
@@ -255,7 +276,7 @@ class SeanceViewModel(application: Application, private val recette: Recette) :
     private fun construire(): EtatSeance {
         val maintenant = maintenant()
         return etatSeance(
-            titre = recette.titre,
+            titre = titre,
             lecteur = lecteur.etat,
             textes = textes,
             restants = minuteurs.tous().keys.associateWith { minuteurs.restant(it, maintenant) ?: 0 },

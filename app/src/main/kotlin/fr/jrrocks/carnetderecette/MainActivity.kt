@@ -1,5 +1,7 @@
 package fr.jrrocks.carnetderecette
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
@@ -30,6 +32,7 @@ import fr.jrrocks.carnetderecette.drive.DriveCarnet
 import fr.jrrocks.carnetderecette.ui.AccueilViewModel
 import fr.jrrocks.carnetderecette.ui.ActionsCarnet
 import fr.jrrocks.carnetderecette.ui.CarnetApp
+import fr.jrrocks.carnetderecette.ui.CuisineViewModel
 import fr.jrrocks.carnetderecette.ui.Destination
 import fr.jrrocks.carnetderecette.ui.EtatCarnet
 import fr.jrrocks.carnetderecette.ui.Onglet
@@ -58,7 +61,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             // Les images du site déjà téléchargées, pour tous les écrans.
             CompositionLocalProvider(LocalImagesDuSite provides depot::imageLocale) {
-                ThemeCarnet { Application(viewModel(), aujourdHui) }
+                ThemeCarnet { Application(viewModel(), viewModel(), aujourdHui) }
             }
         }
     }
@@ -69,9 +72,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Relie la coque à son ViewModel ; seuls les lanceurs d'activité vivent ici. */
+/** Relie la coque à ses ViewModels ; seuls les lanceurs d'activité vivent ici. */
 @Composable
-private fun Application(vm: AccueilViewModel, aujourdHui: LocalDate) {
+private fun Application(vm: AccueilViewModel, cuisine: CuisineViewModel, aujourdHui: LocalDate) {
     val contexte = LocalContext.current
 
     val lanceurConsentement = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
@@ -118,11 +121,35 @@ private fun Application(vm: AccueilViewModel, aujourdHui: LocalDate) {
     val semaine = remember(aujourdHui) { SemaineIso.de(vendrediDeReference(aujourdHui)) }
     val etatSemaine by depot.etat(semaine).collectAsState()
 
+    // La semaine préparée par Claude, choisie dans le sélecteur de fichiers (Drive compris).
+    val lanceurImport = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) cuisine.importer(uri, semaine)
+    }
+    LaunchedEffect(cuisine.annonce) {
+        cuisine.annonce?.let {
+            snackbars.showSnackbar(it)
+            cuisine.annonceVue()
+        }
+    }
+    // La semaine importée sur un téléphone qui n'a rien scanné : le menu donne les titres.
+    LaunchedEffect(semaine, etatSemaine.travail != null, etatSemaine.menu == null) { cuisine.titresSiBesoin(semaine) }
+    // Le fichier des recettes est prêt : le partage d'Android l'envoie sur le Drive.
+    LaunchedEffect(cuisine.envoi) {
+        cuisine.envoi?.let { envoi ->
+            try {
+                contexte.startActivity(Intent.createChooser(envoi, "Enregistrer dans «\u00A0Carnet de recettes\u00A0» sur le Drive"))
+                cuisine.envoiPresente()
+            } catch (e: ActivityNotFoundException) {
+                cuisine.envoiImpossible()
+            }
+        }
+    }
+
     val haut = pile.lastOrNull()
     etatsDesEcrans.SaveableStateProvider(cleEcran(pile.lastIndex, haut)) {
         when (haut) {
             null -> CarnetApp(
-                etat = EtatCarnet(vm.etat, vm.maj, BuildConfig.VERSION_NAME, aujourdHui, etatSemaine),
+                etat = EtatCarnet(vm.etat, vm.maj, BuildConfig.VERSION_NAME, aujourdHui, etatSemaine, cuisine.role, cuisine.mode),
                 onglet = onglet,
                 onOnglet = { onglet = it },
                 actions = ActionsCarnet(
@@ -130,6 +157,11 @@ private fun Application(vm: AccueilViewModel, aujourdHui: LocalDate) {
                     mettreAJour = { vm.mettreAJour(ouvrirReglages = contexte::startActivity) },
                     majPlusTard = vm::ecarterMiseAJour,
                     ouvrir = ouvrir,
+                    // Le Drive nomme souvent un .json « application/json », parfois « texte » ou « binaire ».
+                    importer = { lanceurImport.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
+                    envoyerAClaude = { cuisine.envoyerAClaude(semaine) },
+                    choisirRole = cuisine::choisirRole,
+                    choisirMode = cuisine::choisirMode,
                 ),
                 snackbars = snackbars,
             )

@@ -1,6 +1,10 @@
 package fr.jrrocks.carnetderecette.donnees
 
 import android.content.Context
+import fr.jrrocks.carnetderecette.core.cuisine.FichierSemaine
+import fr.jrrocks.carnetderecette.core.cuisine.LecteurSemaine
+import fr.jrrocks.carnetderecette.core.cuisine.LectureSemaine
+import fr.jrrocks.carnetderecette.core.cuisine.SuiviCuisine
 import fr.jrrocks.carnetderecette.core.fiche.FicheScannee
 import fr.jrrocks.carnetderecette.core.hellofresh.AdressesHelloFresh
 import fr.jrrocks.carnetderecette.core.hellofresh.LecteurHelloFresh
@@ -15,8 +19,10 @@ import fr.jrrocks.carnetderecette.core.semaine.StatutSemaine
 import fr.jrrocks.carnetderecette.net.PageRecue
 import fr.jrrocks.carnetderecette.net.PagesHelloFresh
 import fr.jrrocks.carnetderecette.net.RefusSite
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.net.ConnectException
 import java.net.SocketException
 import java.net.SocketTimeoutException
@@ -41,10 +47,13 @@ import kotlinx.serialization.json.Json
  * Le dépôt de la semaine, sur le téléphone. Une semaine = un dossier :
  *
  * ```
- * semaines/2026-W44/menu.json       le menu lu sur le site (numéro → recette)
- * semaines/2026-W44/recettes.json   FichierRecettes : box scannées, recettes, fiches
- * semaines/2026-W44/photos/         étiquettes et fiches papier photographiées
- * images/                           images du site, téléchargées une fois (usage privé)
+ * semaines/2026-W44/menu.json            le menu lu sur le site (numéro → recette)
+ * semaines/2026-W44/recettes.json        FichierRecettes : box scannées, recettes, fiches
+ * semaines/2026-W44/photos/              étiquettes et fiches papier photographiées
+ * semaines/2026-W44/semaine-claude.json  la semaine préparée par Claude, telle qu'importée
+ * semaines/2026-W44/cuisine.json         SuiviCuisine : les recettes cuisinées
+ * images/                                images du site, téléchargées une fois (usage privé)
+ * envoi/                                 le fichier des recettes à envoyer à Claude
  * ```
  *
  * Le contenu HelloFresh reste sur le téléphone de l'utilisateur (CLAUDE.md, règle 2). Le
@@ -84,7 +93,12 @@ class DepotLocal(
         val fichier = lireFichier(semaine)
         // Le statut « degrade » survit au redémarrage : le bandeau de l'accès rompu aussi.
         val rompu = if (fichier.statut == StatutSemaine.DEGRADE) fichier.message ?: MOTIF_DEGRADE else null
-        val nouveau = MutableStateFlow(EtatSemaine(semaine, fichier, lireMenu(semaine), accesRompu = rompu))
+        val nouveau = MutableStateFlow(
+            EtatSemaine(
+                semaine, fichier, lireMenu(semaine), accesRompu = rompu,
+                travail = lireTravail(semaine), cuisinees = lireSuivi(semaine)?.cuisinees.orEmpty().toSet(),
+            ),
+        )
         etats.putIfAbsent(semaine, nouveau)?.let { return it }
         // Les images qu'une coupure ou une app fermée trop tôt ont laissées en route.
         completerImages(semaine)
@@ -256,6 +270,89 @@ class DepotLocal(
 
     override fun dossierPhotos(semaine: SemaineIso): File = File(dossier(semaine), "photos").apply { mkdirs() }
 
+    override suspend fun importerSemaine(semaine: SemaineIso, ouvrir: () -> InputStream?): LectureSemaine {
+        val etat = flux(semaine)
+        val document = withContext(Dispatchers.IO) { lireDocument(ouvrir) }
+        val texte = (document as? Document.Lu)?.texte
+        val lecture = when (document) {
+            is Document.Lu -> LecteurSemaine.lire(document.texte, semaine)
+            Document.TropGros -> LectureSemaine.Refusee(LecteurSemaine.MOTIF_PAS_UNE_SEMAINE)
+            Document.Illisible -> LectureSemaine.Refusee(MOTIF_DOCUMENT_ILLISIBLE)
+        }
+        if (lecture is LectureSemaine.Refusee || texte == null) {
+            val motif = (lecture as? LectureSemaine.Refusee)?.motif ?: MOTIF_DOCUMENT_ILLISIBLE
+            etat.update { it.copy(importRefuse = motif) }
+            return LectureSemaine.Refusee(motif)
+        }
+        lecture as LectureSemaine.Lue
+        return verrou.withLock {
+            try {
+                // Le fichier tel que Claude l'a écrit : relu à chaque lancement par l'app du moment.
+                ecrireDe(semaine, fichierTravail(semaine), texte)
+            } catch (e: EcritureImpossible) {
+                // La ligne « téléphone plein » le dit déjà sur la Semaine : pas deux fois.
+                return@withLock LectureSemaine.Refusee(EcritureImpossible.MOTIF_ECRITURE)
+            }
+            etat.update { it.copy(travail = lecture.fichier, importRefuse = null, remarquesImport = lecture.remarques) }
+            lecture
+        }
+    }
+
+    private sealed interface Document {
+        data class Lu(val texte: String) : Document
+        data object TropGros : Document
+        data object Illisible : Document
+    }
+
+    /**
+     * Le document choisi, en texte : au plus [LecteurSemaine.TAILLE_MAX] octets, de quoi ne pas
+     * remplir la mémoire si l'on a touché une vidéo par erreur. Illisible : le fournisseur ne
+     * l'ouvre pas (réseau coupé pour un fichier du Drive, accès retiré).
+     */
+    private fun lireDocument(ouvrir: () -> InputStream?): Document = try {
+        ouvrir()?.use { flux ->
+            val tampon = ByteArrayOutputStream()
+            val morceau = ByteArray(8 * 1024)
+            while (tampon.size() <= LecteurSemaine.TAILLE_MAX) {
+                val n = flux.read(morceau)
+                if (n < 0) break
+                tampon.write(morceau, 0, n)
+            }
+            if (tampon.size() > LecteurSemaine.TAILLE_MAX) Document.TropGros else Document.Lu(tampon.toString(Charsets.UTF_8.name()))
+        } ?: Document.Illisible
+    } catch (e: IOException) {
+        Document.Illisible
+    } catch (e: SecurityException) {
+        Document.Illisible
+    } catch (e: IllegalArgumentException) {
+        Document.Illisible
+    }
+
+    override fun marquerCuisinee(semaine: SemaineIso, numero: Int) {
+        // Dans le fond du dépôt : l'écran de la séance peut se fermer sans couper l'écriture.
+        fond.launch {
+            verrou.withLock {
+                val etat = flux(semaine)
+                if (numero in etat.value.cuisinees) return@withLock
+                val cuisinees = etat.value.cuisinees + numero
+                etat.update { it.copy(cuisinees = cuisinees) }
+                sansPlanter {
+                    ecrireDe(semaine, fichierSuivi(semaine), json.encodeToString(SuiviCuisine.serializer(), SuiviCuisine(cuisinees.sorted())))
+                }
+            }
+        }
+    }
+
+    override suspend fun fichierPourClaude(semaine: SemaineIso): File {
+        val fichier = flux(semaine).value.fichier
+        val dossier = File(racine, "envoi")
+        val cible = File(dossier, semaine.nomDeFichier("recettes"))
+        // Un seul fichier à la fois : celui d'une semaine passée n'a plus rien à faire là.
+        withContext(Dispatchers.IO) { dossier.listFiles()?.filter { it.name != cible.name }?.forEach { it.delete() } }
+        ecrireDe(semaine, cible, json.encodeToString(FichierRecettes.serializer(), fichier))
+        return cible
+    }
+
     override fun imageLocale(chemin: String): File? = fichierImage(chemin).takeIf { it.exists() }
 
     // ── Fichiers ────────────────────────────────────────────────────────────────
@@ -263,6 +360,8 @@ class DepotLocal(
     private fun dossier(semaine: SemaineIso) = File(racine, "semaines/$semaine")
     private fun fichierMenu(semaine: SemaineIso) = File(dossier(semaine), "menu.json")
     private fun fichierRecettes(semaine: SemaineIso) = File(dossier(semaine), "recettes.json")
+    private fun fichierTravail(semaine: SemaineIso) = File(dossier(semaine), "semaine-claude.json")
+    private fun fichierSuivi(semaine: SemaineIso) = File(dossier(semaine), "cuisine.json")
 
     /** « /image/a b.jpg » → « image_a_b.jpg » : un nom de fichier sûr par chemin d'image. */
     private fun fichierImage(chemin: String) =
@@ -272,6 +371,14 @@ class DepotLocal(
         lire(fichierRecettes(semaine), FichierRecettes.serializer()) ?: FichierRecettes(semaine = semaine)
 
     private fun lireMenu(semaine: SemaineIso): MenuSemaine? = lire(fichierMenu(semaine), MenuSemaine.serializer())
+
+    /** Relue par l'app du moment : une version plus récente du lecteur profite des anciens imports. */
+    private fun lireTravail(semaine: SemaineIso): FichierSemaine? {
+        val texte = fichierTravail(semaine).takeIf { it.exists() }?.let { runCatching { it.readText() }.getOrNull() } ?: return null
+        return (LecteurSemaine.lire(texte, semaine) as? LectureSemaine.Lue)?.fichier
+    }
+
+    private fun lireSuivi(semaine: SemaineIso): SuiviCuisine? = lire(fichierSuivi(semaine), SuiviCuisine.serializer())
 
     private fun <T> lire(fichier: File, serialiseur: kotlinx.serialization.KSerializer<T>): T? =
         fichier.takeIf { it.exists() }?.let { runCatching { json.decodeFromString(serialiseur, it.readText()) }.getOrNull() }
@@ -385,6 +492,8 @@ class DepotLocal(
 
         /** La page du menu, parmi les [pagesRompues] (les box portent un numéro positif). */
         private const val PAGE_MENU = 0
+
+        const val MOTIF_DOCUMENT_ILLISIBLE = "Le fichier ne s'ouvre pas\u00A0: s'il est sur le Drive, vérifie le réseau, puis réessaie."
 
         /** Un fichier « degrade » sans motif écrit (version ancienne, écriture interrompue). */
         private const val MOTIF_DEGRADE = "La dernière lecture du site n'a pas abouti."

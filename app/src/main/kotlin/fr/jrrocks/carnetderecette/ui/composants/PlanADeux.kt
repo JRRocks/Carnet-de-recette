@@ -50,17 +50,39 @@ private val Role.axe get() = if (this == Role.DECOUPE) AXE_DECOUPE else AXE_CHAU
  */
 @Composable
 fun PlanADeuxExemple(rangees: List<RangeeADeux>, legende: String, resume: String, modifier: Modifier = Modifier) {
-    val typo = MaterialTheme.typography
     Column(modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = "$legende $resume" }) {
-        Role.entries.forEach { EnTeteRole(it) }
-        rangees.forEachIndexed { i, rangee -> RangeePlan(rangee, derniere = i == rangees.lastIndex) }
-        Text(
-            legende,
-            style = typo.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
-        )
+        CorpsDuPlan(rangees)
+        Legende(legende)
     }
+}
+
+/**
+ * Le plan à deux d'une vraie recette, le même sur les deux téléphones. TalkBack le lit rangée
+ * par rangée : le rôle puis la tâche (« Découpe : émincer les oignons »), et chaque passage de
+ * main.
+ */
+@Composable
+fun PlanADeux(rangees: List<RangeeADeux>, legende: String?, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth()) {
+        CorpsDuPlan(rangees)
+        legende?.let { Legende(it) }
+    }
+}
+
+@Composable
+private fun CorpsDuPlan(rangees: List<RangeeADeux>) {
+    Role.entries.forEach { EnTeteRole(it) }
+    rangees.forEachIndexed { i, rangee -> RangeePlan(rangee, derniere = i == rangees.lastIndex) }
+}
+
+@Composable
+private fun Legende(texte: String) {
+    Text(
+        texte,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
+    )
 }
 
 /** Le départ de la ligne d'un rôle, son nom en toutes lettres. */
@@ -110,10 +132,15 @@ private fun RangeePlan(rangee: RangeeADeux, derniere: Boolean) {
         is RangeeADeux.Passage -> Triple(rangee.texte, typo.bodyMedium, couleurs.onSurfaceVariant)
     }
     val couleurVers = (rangee as? RangeeADeux.Passage)?.vers?.couleur
+    val lu = when (rangee) {
+        is RangeeADeux.Tache -> "${rangee.role.libelle}\u00A0: ${rangee.texte}"
+        is RangeeADeux.Passage -> rangee.texte
+    }
     Box(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
+            .clearAndSetSemantics { contentDescription = lu }
             .drawBehind {
                 val y = HAUT.toPx() + style.lineHeight.toPx() / 2
                 val bas = if (derniere) y else size.height

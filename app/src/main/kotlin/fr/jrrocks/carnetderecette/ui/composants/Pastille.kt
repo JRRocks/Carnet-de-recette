@@ -28,12 +28,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fr.jrrocks.carnetderecette.core.cuisine.RoleCuisine
 import fr.jrrocks.carnetderecette.ui.theme.Carnet
 
 /** Les deux rôles en cuisine. Chacun a sa forme pour toujours : rond pour l'un, carré pour l'autre. */
 enum class Role(val libelle: String) {
     DECOUPE("Découpe"),
     CHAUFFE("Chauffe"),
+}
+
+/** Le rôle à l'écran d'un rôle du plan. */
+fun RoleCuisine.enUi(): Role = when (this) {
+    RoleCuisine.DECOUPE -> Role.DECOUPE
+    RoleCuisine.CHAUFFE -> Role.CHAUFFE
 }
 
 val Role.forme: Shape

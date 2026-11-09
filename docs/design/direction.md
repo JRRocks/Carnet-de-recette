@@ -110,12 +110,16 @@ est actif) :
   samedi au jeudi, l'accueil, le Carnet, le scanner, la fiche et la séance restent sur la
   semaine du dernier vendredi (celle des box qu'on cuisine) ; on passe à la suivante le
   vendredi de la livraison d'après (décision du 2026-10-27, quand les données sont arrivées).
-- **Semaine** (lot 5 en place) : la ligne Vendredi, Vendredi soir, Samedi, En cuisine, avec
-  dates en chiffres tabulaires au bout de la ligne ; l'étape courante en plaque ; sous
-  « En cuisine », la recette du soir et qui fait quoi (pastilles, nombre de tâches, durée).
-  Puis la liste des recettes de la semaine (rangées de 72 dp, pas de cartes). Le bouton
-  flottant suit l'étape : « Scanner les box », « Importer la semaine », « Cuisiner la 207 ».
-  L'étape courante se déduit des données (box scannées, semaine importée), pas du seul jour.
+- **Semaine** (en place, version 0.6) : la ligne Vendredi, Vendredi soir, Samedi, En cuisine,
+  avec dates en chiffres tabulaires au bout de la ligne ; l'étape courante en plaque ; sous
+  « En cuisine », la recette du soir et qui fait quoi (tête de ligne de chaque rôle, nombre de
+  tâches, minutes les mains prises). Le bouton flottant suit l'étape : « Scanner les box »,
+  « Importer la semaine », « Cuisiner la 207 » (qui ouvre l'onglet Cuisine). L'étape courante
+  se déduit des données (box scannées, semaine importée, recettes cuisinées), pas du seul
+  jour. Sous le vendredi, « Scanner d'autres box » en bouton texte ; sous le vendredi soir,
+  « Envoyer les recettes » tant que l'app ne les dépose pas sur le Drive ; sous le samedi, le
+  refus d'un import avec « Choisir un autre fichier ». Toutes les étapes sont dans l'app :
+  plus de pointillé « pas encore dans l'app », ni sa clé.
 - **Scanner** (lot 2, en place) : aperçu caméra en haut, tout ce qui se touche en bas,
   dernier résultat en grand (« 207 » en displaySmall tabulaire), sélecteur de personnes,
   « Terminer » pleine largeur. L'aperçu pèse 0,85 contre 1 pour le bas (0,6 au-delà de
@@ -133,8 +137,15 @@ est actif) :
   Au lot 2, la fiche recette est une seule page : photo du plat 16:10, personnes −/+,
   ingrédients (quantités en colonne), ustensiles, étapes sur la ligne, allergènes, mention
   « pour ton usage privé » ; bouton flottant « Lire à voix haute ».
-- **Cuisine** (lots 5 et 6) : « À deux | Seul », le plan à deux de ce soir, puis « Je suis… »
-  (premier usage) ou « Commencer mes tâches ».
+- **Cuisine** (lot 5 en place, version 0.6 ; synchro au lot 6) : « Ce soir », le plat en
+  headlineSmall, personnes et durée ; le doute de Claude en ligne d'état s'il en a un ;
+  « À deux | Seul » (plein pour le choix pris, au contour sinon) ; le plan à deux de ce soir,
+  lu par TalkBack rangée par rangée (« Découpe : émincer les oignons ») ; puis « Je suis… »
+  (Découpe, Chauffe, retenu par le téléphone) et « Commencer mes tâches ». Seul : une phrase
+  (« 8 tâches à la suite : pendant les cuissons, la voix te fait avancer le reste ») et
+  « Commencer ». Plus bas, les autres recettes de la semaine (« cuisinée » au bout de la
+  ligne) : un toucher en fait celle de ce soir. Avant l'import, l'état vide au plan d'exemple,
+  « Importer la semaine » et « Essayer la lecture à voix haute ».
 - **Séance** : la tâche en cours en headlineLarge (32 sp), les deux suivantes, l'attente de
   l'autre ou le passage de main comme une rangée à part entière, dans l'ordre où la voix les
   dira ; dock bas avec minuteur et « Relire » (72 dp) et « C'est fait » (72 dp, pleine largeur).
@@ -143,7 +154,9 @@ est actif) :
   dans la barre du haut, témoin « Micro ouvert » au-dessus du dock ; sous chaque étape à
   venir, son déclencheur (« Lue après l'étape d'avant », « à la fin du minuteur ») et son
   interrupteur de lecture. L'écran de fin dit « Micro coupé » quand la fin a fermé le micro,
-  et montre le témoin « Micro ouvert » si on le rouvre à la main.
+  et montre le témoin « Micro ouvert » si on le rouvre à la main. Depuis la version 0.6, la
+  même séance lit les segments de Claude d'un cuisinier, titrée « 207 · Découpe » ou
+  « 207 · Chauffe » (seul : le nom du plat) ; les segments courts restent en 32 sp.
 
 ## États
 

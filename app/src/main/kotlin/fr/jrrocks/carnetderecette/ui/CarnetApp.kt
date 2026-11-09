@@ -57,6 +57,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import fr.jrrocks.carnetderecette.R
+import fr.jrrocks.carnetderecette.core.cuisine.ModeCuisine
+import fr.jrrocks.carnetderecette.core.cuisine.RoleCuisine
 import fr.jrrocks.carnetderecette.core.semaine.SemaineIso
 import fr.jrrocks.carnetderecette.donnees.EtatSemaine
 import fr.jrrocks.carnetderecette.ui.theme.Carnet
@@ -79,6 +81,9 @@ data class EtatCarnet(
     val aujourdHui: LocalDate,
     /** Ce que le téléphone sait de la semaine affichée : box scannées, recettes, fiches. */
     val semaine: EtatSemaine? = null,
+    /** Qui utilise ce téléphone en cuisine ; `null` tant qu'on ne l'a pas dit. */
+    val role: RoleCuisine? = null,
+    val mode: ModeCuisine = ModeCuisine.A_DEUX,
 ) {
     /** La semaine affichée : celle du vendredi de livraison de référence. */
     val semaineIso: SemaineIso get() = SemaineIso.de(vendrediDeReference(aujourdHui))
@@ -96,6 +101,12 @@ data class ActionsCarnet(
     val majPlusTard: () -> Unit = {},
     /** Pousse un écran plein écran par-dessus les onglets (scanner, recette, séance…). */
     val ouvrir: (Destination) -> Unit = {},
+    /** Ouvre le sélecteur de fichiers pour importer la semaine préparée par Claude. */
+    val importer: () -> Unit = {},
+    /** Partage le fichier des recettes, pour l'enregistrer sur le Drive où Claude le lit. */
+    val envoyerAClaude: () -> Unit = {},
+    val choisirRole: (RoleCuisine) -> Unit = {},
+    val choisirMode: (ModeCuisine) -> Unit = {},
 )
 
 /** À partir de cette largeur (tablette, téléphone en paysage), un rail remplace la barre du bas. */
@@ -120,7 +131,7 @@ fun CarnetApp(
     snackbars: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     BackHandler(enabled = onglet != Onglet.SEMAINE) { onOnglet(Onglet.SEMAINE) }
-    val bouton = if (onglet == Onglet.SEMAINE) boutonDeLaSemaine(etat, actions) else null
+    val bouton = if (onglet == Onglet.SEMAINE) boutonDeLaSemaine(etat, actions, onOnglet) else null
     val large = LocalConfiguration.current.screenWidthDp >= LARGEUR_RAIL
     // L'encoche de la caméra compte aussi (safeDrawing) : en paysage, rien ne passe dessous.
     val bords = WindowInsets.safeDrawing
@@ -167,9 +178,7 @@ fun CarnetApp(
                     when (courant) {
                         Onglet.SEMAINE -> EcranSemaine(etat, actions, marges, avecBouton = bouton != null)
                         Onglet.CARNET -> EcranCarnet(marges, etat.semaine, actions.ouvrir)
-                        Onglet.CUISINE -> EcranCuisine(marges) {
-                            actions.ouvrir(Destination.Seance(etat.semaineIso, numero = null))
-                        }
+                        Onglet.CUISINE -> EcranCuisine(etat, actions, marges)
                         Onglet.REGLAGES -> EcranReglages(etat, actions, marges)
                     }
                 }
@@ -302,11 +311,24 @@ private data class BoutonAction(
 )
 
 /**
- * Le bouton d'action de la Semaine suit l'étape en cours : au lot 2, scanner les box. Le scan
- * marche sans Drive (décision du 2026-10-27) et reste ouvert tous les jours : une livraison
- * peut être décalée. Brancher le Drive est l'action de sa propre étape.
+ * Le bouton d'action de la Semaine suit l'étape en cours : scanner les box tant qu'aucune ne
+ * l'est, puis importer la semaine préparée par Claude, puis cuisiner la recette de ce soir.
+ * Toute la semaine cuisinée, il revient au scan : une livraison peut être décalée. Le scan
+ * reste ouvert tous les jours depuis l'étape du vendredi ; brancher le Drive et envoyer les
+ * recettes à Claude sont les actions de leur propre étape.
  */
-private fun boutonDeLaSemaine(etat: EtatCarnet, actions: ActionsCarnet): BoutonAction =
-    BoutonAction("Scanner les box", R.drawable.ic_document_scanner, "Scanner les box de la semaine") {
-        actions.ouvrir(Destination.Scanner(etat.semaineIso))
+private fun boutonDeLaSemaine(etat: EtatCarnet, actions: ActionsCarnet, onOnglet: (Onglet) -> Unit): BoutonAction {
+    val semaine = etat.semaine
+    val ceSoir = semaine?.ceSoir
+    return when {
+        semaine?.travail != null && ceSoir != null ->
+            BoutonAction("Cuisiner la ${ceSoir.numero}", R.drawable.ic_restaurant, "Cuisiner la recette ${ceSoir.numero} ce soir") {
+                onOnglet(Onglet.CUISINE)
+            }
+        semaine != null && semaine.boxes.isNotEmpty() && semaine.travail == null ->
+            BoutonAction("Importer la semaine", R.drawable.ic_folder, "Importer la semaine préparée par Claude", actions.importer)
+        else -> BoutonAction("Scanner les box", R.drawable.ic_document_scanner, "Scanner les box de la semaine") {
+            actions.ouvrir(Destination.Scanner(etat.semaineIso))
+        }
     }
+}

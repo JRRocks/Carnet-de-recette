@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <files-path name="maj" path="maj/" />
+    <!-- Le fichier des recettes de la semaine, partagé vers le Drive pour Claude. -->
+    <files-path name="envoi" path="envoi/" />
 </paths>

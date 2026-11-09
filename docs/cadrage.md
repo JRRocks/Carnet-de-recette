@@ -180,9 +180,15 @@ On ne fige pas ce format.
 
 ## 6. Le travail de Cowork le vendredi soir
 
-Un **skill Cowork** (versionné dans ce dépôt ; les données sont sur Drive, le skill les lit
-et les écrit), lancé par une **tâche planifiée** le vendredi soir, ou à la main.
+Un **skill Cowork** (versionné dans ce dépôt : [`cowork/carnet-semaine/SKILL.md`](../cowork/carnet-semaine/SKILL.md) ;
+les données sont sur Drive, le skill les lit et les écrit), lancé par une **tâche planifiée**
+le vendredi soir, ou à la main.
 **Il n'accède pas au site HelloFresh** : tout ce qu'il lui faut est sur Drive.
+
+Tant que l'app ne dépose pas elle-même ses fichiers sur le Drive (configuration OAuth, à la
+toute fin), l'étape « Vendredi soir » de la Semaine propose **« Envoyer les recettes »** : le
+partage d'Android envoie `recettes-AAAA-Sww.json` vers l'app Drive, qu'on enregistre dans
+« Carnet de recettes ». Le skill le cherche dans tout le dossier.
 
 1. Lit `recettes-…json`, `scans-…json` et `profil-cuisine.json`. Si l'app a signalé le mode
    dégradé (§ 9), il le reprend dans son fichier et s'arrête.
@@ -213,28 +219,24 @@ l'aveugle), à reprendre dans le skill au lot 3 :
 - Une tâche peut changer de rôle quand l'un est libre (« celui qui est libre prend la tâche
   prête ») : le fichier porte le rôle de chaque tâche, pas seulement son type.
 
-Format du fichier de la semaine (esquisse, à figer au lot 3) :
+Ces leçons sont dans le skill depuis le 2026-11-08.
 
-```json
-{
-  "type": "semaine", "version": 1, "semaine": "2026-W43",
-  "statut": "ok | partiel | degrade", "message": "…",
-  "recettes": [{
-    "numero": 207, "personnes": 4, "a_confirmer": false,
-    "source": { "type": "hellofresh", "id": "…", "url": "…" },
-    "taches": [{
-      "id": "t3", "type": "decoupe | chauffe | attente | dressage",
-      "duree_min": 5, "apres": ["t1"], "ingredients": ["…"], "ustensile": "…",
-      "texte": "…", "etape_origine": 2,
-      "hachoir": { "avec": ["t4"], "mode": "ensemble | a_la_suite", "ordre": "…" }
-    }],
-    "segments_audio": [{
-      "id": "a3", "tache": "t3", "texte": "…",
-      "declencheur": "manuel | fin_tache_precedente | fin_minuteur"
-    }]
-  }]
-}
-```
+**Format du fichier de la semaine, version 1** (figé le 2026-11-08) : la forme complète est
+dans le [skill](../cowork/carnet-semaine/SKILL.md) ; l'app le lit avec
+`core/.../cuisine/LecteurSemaine.kt`. Par rapport à l'esquisse du cadrage :
+- chaque tâche porte son **rôle** (`role`), en plus de son type ; `hachoir` devient `materiel`
+  (`outil` : hachoir, râpe électrique ou aucun ; `conseil`, `avec`, `mode`) ;
+- chaque segment porte son **rôle**, son **minuteur** (`minuteur_s`) et, s'il parle de l'autre
+  cuisinier, son **texte pour qui cuisine seul** (`texte_seul` ; vide : sauté seul) ;
+- les recettes sont **dans l'ordre où les cuisiner** : l'app propose la première pas encore
+  cuisinée comme « ce soir ».
+
+L'import est exigeant sur ce qui rendrait la semaine fausse (un autre fichier, comme celui des
+recettes ; une autre semaine ; une version plus récente que l'app) et indulgent sur le reste :
+une recette, une tâche ou un segment illisible est laissé de côté et signalé sous l'étape du
+samedi ; une valeur inconnue reprend sa valeur par défaut ; les identifiants en double et les
+dépendances inconnues sont remis d'aplomb. Le fichier est gardé tel quel sur le téléphone et
+relu à chaque lancement.
 
 ## 7. Le planificateur
 
@@ -254,6 +256,27 @@ Format du fichier de la semaine (esquisse, à figer au lot 3) :
   - À deux, l'un découpe et l'autre chauffe. Les rôles sont des préférences, pas des murs :
     celui qui est libre prend la tâche prête.
   - Les deux téléphones calculent **le même plan** à partir des mêmes données.
+- **Codé au lot 5** (2026-11-08, `core/.../cuisine/Planificateur.kt`) :
+  - un cuisinier libre prend **la première tâche prête de son rôle, dans l'ordre de Claude** ;
+    une attente démarre dès qu'elle est prête et ne retient personne ; une dépendance
+    circulaire ne bloque rien (la première tâche restante part). Mesuré sur les dix-huit
+    fichiers de l'aperçu de la semaine 44 : cet ordre finit plus tôt que la priorité au plus
+    long chemin (702 minutes cumulées contre 709) et colle mieux à l'ordre des segments (8
+    rôles sur 36 où le plan et les segments diffèrent, contre 17) ;
+  - **à deux, les rôles sont stricts pour l'instant** : les segments de Claude sont écrits
+    pour un rôle (« passe les oignons à la chauffe »), et prendre la tâche de l'autre demande
+    que les deux téléphones se parlent. Ce sera la synchro (lot 6) ;
+  - chaque téléphone lit les segments de son rôle **dans l'ordre où Claude les a écrits**
+    (ses déclencheurs « à la fin du minuteur » suivent le segment qui le lance) ; seul, tous
+    les segments, rangés selon le plan seul, avec `texte_seul` ;
+  - le plan à deux montre le passage de main d'un ingrédient préparé juste avant la tâche qui
+    en a besoin ; une dépendance entre deux tâches de cuisson n'est qu'un ordre ;
+  - la recette est **cuisinée** quand un téléphone finit sa séance ; « ce soir » passe à la
+    suivante. Le hachoir : les conseils de Claude, dans ses segments ; la cuve partagée entre
+    deux tâches n'est pas planifiée.
+  - Limite connue, seul : un minuteur lancé avant de passer à d'autres tâches sonne à
+    l'heure, mais la séance n'avance pas toute seule jusqu'au segment qui l'attendait ; on
+    dit « suivant ».
 - **Hachoir** (selon `profil-cuisine.json`) :
   - même moment d'utilisation et même destination → **ensemble** dans le hachoir ;
   - moments différents → **à la suite sans rincer**, en commençant par le plus sec et le plus
@@ -404,7 +427,8 @@ SourceRecette
       l'empreinte release est déclarée, la clé debug étant publique (google-cloud.md).
 - [ ] Le sélecteur de fichiers Android voit-il bien Google Drive sur les deux téléphones ?
 - [ ] Cowork accepte-t-il de produire les tâches à partir de `recettes-…json` déposé par
-      l'app ? (Test du lot 3.)
+      l'app ? Joué par Claude sur les six box de la semaine 44 (aperçu du 2026-11-06, trois
+      modèles) ; reste à le faire dans Cowork, avec le skill (test du lot 3).
 - [x] Compilation Android dans les sessions cloud : `./outils/sdk-android.sh` installe le
       SDK et le pot de Robolectric (CLAUDE.md, « Compiler et tester »).
 
@@ -415,8 +439,8 @@ SourceRecette
 | 0 | Ce cadrage | ✅ 2026-10-23 |
 | 1 | Squelette Android (Kotlin, Compose, minSdk 26), clé debug versionnée, CI d'aperçu et de publication (`maj-auto-github`), connexion Drive `drive.file` et création du dossier | 🟡 Codé le 2026-10-25, relu (relecture adversariale, 9 défauts corrigés) le 2026-10-26, visuel refait (« Correspondance », version 0.2) le 2026-10-26. Reste, **à la toute fin** (décision du 2026-10-27), dans l'ordre : clé release et secrets ([publication](publication.md)), configuration Google Cloud ([guide](google-cloud.md)), essai sur téléphone |
 | 2 | **Les outils** (priorité du 2026-10-27), sans Drive : sonde, menu de la semaine et pages recettes, stockage sur le téléphone, images en cache, scan des étiquettes (`scan-multimode` adapté), scan de la fiche papier, fiche recette, lecture à voix haute par étapes, commandes vocales, minuteurs. Dépôt sur Drive une fois branché | 🟡 Codé le 2026-10-27 (version 0.3), relu (relecture adversariale). Reste : dépôt sur Drive, puis un vrai vendredi et un essai en cuisine sur téléphone |
-| 3 | Skill Cowork du vendredi soir (sans accès web) : confirmation, tâches, hachoir, segments audio, fichier de semaine | Un vrai vendredi soir |
-| 4 | Import du samedi (sélecteur), catalogue de toutes les semaines, bandeau mode dégradé | — |
-| 5 | Mode cuisine : planificateur seul ou à deux, hachoir, segments audio de Cowork | Un vrai repas à deux |
+| 3 | Skill Cowork du vendredi soir (sans accès web) : confirmation, tâches, hachoir, segments audio, fichier de semaine | 🟡 Aperçu de la semaine 44 joué le 2026-11-06 (six box, trois modèles, relecture à l'aveugle) ; skill écrit et versionné le 2026-11-08 (`cowork/carnet-semaine/`), format v1 figé. Reste : un vrai vendredi soir dans Cowork |
+| 4 | Import du samedi (sélecteur), catalogue de toutes les semaines, bandeau mode dégradé | 🟡 Import codé le 2026-11-08 (version 0.6) : sélecteur, refus en clair sous l'étape du samedi, envoi des recettes par le partage d'Android en attendant le dépôt sur Drive. Reste : catalogue de toutes les semaines |
+| 5 | Mode cuisine : planificateur seul ou à deux, hachoir, segments audio de Cowork | 🟡 Codé le 2026-11-08 (version 0.6) : planificateur (§ 7), plan à deux, seul, « Je suis… », séance de chaque cuisinier avec les segments de Claude. Reste : un vrai repas à deux |
 | 6 | Synchro des deux téléphones | — |
 | Réservé | Moteurs du mode dégradé dans l'app (sauf la fiche papier, codée au lot 2), autres sites de recettes | Seulement si l'accès HelloFresh tombe |

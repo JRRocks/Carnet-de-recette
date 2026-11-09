@@ -3,14 +3,24 @@ package fr.jrrocks.carnetderecette.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
+import fr.jrrocks.carnetderecette.core.cuisine.ModeCuisine
+import fr.jrrocks.carnetderecette.core.cuisine.Planificateur
+import fr.jrrocks.carnetderecette.core.cuisine.RecettePreparee
+import fr.jrrocks.carnetderecette.core.cuisine.RoleCuisine
 import fr.jrrocks.carnetderecette.donnees.EtatSemaine
+import fr.jrrocks.carnetderecette.ui.composants.TeteDeLigne
+import fr.jrrocks.carnetderecette.ui.composants.enUi
 import fr.jrrocks.carnetderecette.ui.theme.chiffres
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,8 +48,9 @@ private val SOUS_LE_BOUTON = 96.dp
 /**
  * L'accueil : où en est la semaine et ce qui vient, sous la forme du schéma de ligne. Une
  * étape « Drive du foyer » ouvre la ligne (facultative tant que la configuration OAuth n'est
- * pas faite : tout reste sur le téléphone) ; le vendredi, on scanne les box ; les temps
- * suivants sont annoncés, pas encore dans l'app.
+ * pas faite : tout reste sur le téléphone) ; le vendredi, on scanne les box et l'on envoie
+ * leurs recettes à Claude ; le samedi, on importe la semaine qu'il a préparée ; en cuisine,
+ * la recette de ce soir.
  *
  * En tête, les lignes d'état : l'accès HelloFresh rompu et le téléphone plein quand ils
  * arrivent, puis la mise à jour et « hors ligne ». L'erreur du Drive s'écrit sous son étape,
@@ -81,14 +92,26 @@ fun EcranSemaine(etat: EtatCarnet, actions: ActionsCarnet, marges: PaddingValues
         if (drive is EtatDrive.Pret && drive.horsLigne) {
             LigneEtat(R.drawable.ic_cloud_off, DriveCarnet.MOTIF_HORS_LIGNE, TonEtat.NEUTRE, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
         }
-        ClePasEncore(Modifier.padding(top = 8.dp, bottom = 8.dp))
-        LigneDeTemps(etapesDeLaSemaine(etat)) { etape ->
+        val etapes = etapesDeLaSemaine(etat)
+        // La clé du pointillé, seulement s'il y en a un sur la ligne.
+        if (etapes.any { it.etat == EtatEtape.PAS_ENCORE }) ClePasEncore(Modifier.padding(top = 8.dp, bottom = 8.dp))
+        LigneDeTemps(etapes, Modifier.padding(top = 8.dp)) { etape ->
+            val semaine = etat.semaine
             when (etape.titre) {
                 DRIVE -> ActionDuDrive(drive, actions)
                 // Les box déjà scannées, chacune avec sa recette (ou l'état de la lecture de sa page).
-                VENDREDI -> etat.semaine?.let { BoxesDeLaSemaine(it, actions) }
-                // Qui fait quoi : le rond et le carré, là où l'on cuisinera.
-                EN_CUISINE -> LegendeRoles(Modifier.padding(top = 12.dp))
+                VENDREDI -> semaine?.let { BoxesDeLaSemaine(it, actions) }
+                VENDREDI_SOIR -> semaine?.let { EnvoiAClaude(it, actions) }
+                SAMEDI -> semaine?.let { ImportDuSamedi(it, actions) }
+                EN_CUISINE -> {
+                    val ceSoir = semaine?.ceSoir
+                    if (semaine != null && ceSoir != null) {
+                        CeSoir(semaine, ceSoir, etat.mode)
+                    } else if (semaine?.travail == null) {
+                        // Qui fait quoi : le rond et le carré, là où l'on cuisinera.
+                        LegendeRoles(Modifier.padding(top = 12.dp))
+                    }
+                }
             }
         }
     }
@@ -122,42 +145,137 @@ private fun ActionDuDrive(drive: EtatDrive, actions: ActionsCarnet) {
     }
 }
 
-/** Les box scannées cette semaine : numéro, titre, nombre de personnes ; un toucher ouvre la recette. */
+/**
+ * Les box scannées cette semaine : numéro, titre, nombre de personnes ; un toucher ouvre la
+ * recette. Le bouton flottant passe ensuite à l'import : le scan reste ouvert d'ici, pour une
+ * box arrivée plus tard.
+ */
 @Composable
 private fun BoxesDeLaSemaine(semaine: EtatSemaine, actions: ActionsCarnet) {
     if (semaine.boxes.isEmpty()) return
     Column(Modifier.padding(top = 8.dp)) {
         semaine.boxes.sortedBy { it.numero }.forEach { box ->
-            val recette = semaine.recette(box.numero)
-            val titre = recette?.titre ?: semaine.menu?.entree(box.numero)?.titre ?: "Recette ${box.numero}"
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .clickable(onClickLabel = "Ouvrir la recette") { actions.ouvrir(Destination.Recette(semaine.semaine, box.numero)) }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "${box.numero}",
-                    style = MaterialTheme.typography.titleMedium.chiffres(),
-                    modifier = Modifier.widthIn(min = 44.dp),
-                )
-                Text(
-                    titre,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    "${box.personnes}\u00A0pers.",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
+            LigneDeBox(
+                box.numero,
+                semaine.titre(box.numero),
+                "${box.personnes}\u00A0pers.",
+                Modifier.clickable(onClickLabel = "Ouvrir la recette") { actions.ouvrir(Destination.Recette(semaine.semaine, box.numero)) },
+            )
+        }
+        BoutonCarnet(
+            "Scanner d'autres box",
+            { actions.ouvrir(Destination.Scanner(semaine.semaine)) },
+            modifier = Modifier.padding(top = 4.dp),
+            sorte = SorteBouton.TEXTE,
+            icone = R.drawable.ic_document_scanner,
+        )
+    }
+}
+
+/** Une box : son numéro, son titre, et à droite son nombre de personnes ou son état ; [modifier] la rend touchable. */
+@Composable
+internal fun LigneDeBox(numero: Int, titre: String, droite: String?, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "$numero",
+            style = MaterialTheme.typography.titleMedium.chiffres(),
+            modifier = Modifier.widthIn(min = 44.dp),
+        )
+        Text(
+            titre,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (droite != null) {
+            Text(
+                droite,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Le vendredi soir : tant que l'app ne dépose pas elle-même les recettes sur le Drive, on les y
+ * envoie d'un geste (partage d'Android) ; Claude les y lit. Une fois la semaine importée, ce
+ * que Claude a signalé (une box qu'il n'a pas pu préparer) s'écrit ici.
+ */
+@Composable
+private fun EnvoiAClaude(semaine: EtatSemaine, actions: ActionsCarnet) {
+    val message = semaine.travail?.message
+    when {
+        message != null -> LigneEtat(R.drawable.ic_info, "Claude\u00A0: $message", TonEtat.INFO, Modifier.padding(top = 12.dp))
+        semaine.travail == null && semaine.boxes.isNotEmpty() -> BoutonCarnet(
+            "Envoyer les recettes",
+            actions.envoyerAClaude,
+            modifier = Modifier.padding(top = 12.dp),
+            sorte = SorteBouton.CONTOUR,
+            icone = R.drawable.ic_add_to_drive,
+        )
+    }
+}
+
+/**
+ * Le samedi : ce que l'import a refusé, avec de quoi choisir un autre fichier, ou ce qu'il a
+ * laissé de côté. Sur le téléphone qui n'a rien scanné (celui de l'autre cuisinier), le bouton
+ * flottant reste au scan : l'import se fait d'ici.
+ */
+@Composable
+private fun ImportDuSamedi(semaine: EtatSemaine, actions: ActionsCarnet) {
+    val refus = semaine.importRefuse
+    if (refus == null && semaine.travail == null && semaine.boxes.isEmpty()) {
+        BoutonCarnet(
+            "Importer la semaine",
+            actions.importer,
+            modifier = Modifier.padding(top = 12.dp),
+            sorte = SorteBouton.CONTOUR,
+            icone = R.drawable.ic_folder,
+        )
+    }
+    if (refus != null) {
+        LigneEtat(R.drawable.ic_error, refus, TonEtat.ERREUR, Modifier.padding(top = 12.dp)) {
+            BoutonCarnet("Choisir un autre fichier", actions.importer, sorte = SorteBouton.CONTOUR, icone = R.drawable.ic_folder)
+        }
+    } else if (semaine.remarquesImport.isNotEmpty()) {
+        LigneEtat(R.drawable.ic_info, semaine.remarquesImport.joinToString(" "), TonEtat.INFO, Modifier.padding(top = 12.dp))
+    }
+}
+
+/** La recette de ce soir et, à deux, ce que chacun aura à faire. */
+@Composable
+private fun CeSoir(semaine: EtatSemaine, recette: RecettePreparee, mode: ModeCuisine) {
+    Column(Modifier.padding(top = 8.dp)) {
+        LigneDeBox(recette.numero, semaine.titre(recette.numero), recette.personnes?.let { "$it\u00A0pers." })
+        if (mode == ModeCuisine.A_DEUX) {
+            val plan = Planificateur.planifier(recette, ModeCuisine.A_DEUX)
+            RoleCuisine.entries.forEach { role ->
+                val taches = plan.duRole(role).count { !it.tache.passive }
+                ResumeRole(role, "${role.enUi().libelle}\u00A0: ${pluriel(taches, "tâche", "tâches")} · ${plan.occupation(role)}\u00A0min")
             }
         }
+    }
+}
+
+/** La tête de ligne d'un rôle et ce qu'il aura à faire. */
+@Composable
+private fun ResumeRole(role: RoleCuisine, texte: String) {
+    Row(
+        Modifier.padding(top = 8.dp).clearAndSetSemantics { contentDescription = texte },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TeteDeLigne(role.enUi())
+        Spacer(Modifier.width(12.dp))
+        Text(texte, style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -221,28 +339,70 @@ fun LigneMiseAJour(maj: EtatMiseAJour, actions: ActionsCarnet, modifier: Modifie
 }
 
 /**
- * L'étape du Drive, puis les quatre temps de la semaine. Le vendredi (scan des box) est dans
- * l'app depuis le lot 2 : c'est l'étape en cours tant qu'aucune box n'est scannée.
+ * L'étape du Drive, puis les quatre temps de la semaine, tous dans l'app depuis le lot 5 : on
+ * scanne, on envoie les recettes à Claude, on importe ce qu'il a préparé, on cuisine. L'étape
+ * en cours est la première qui attend un geste.
  */
 internal fun etapesDeLaSemaine(etat: EtatCarnet): List<Etape> {
     val vendredi = vendrediDeReference(etat.aujourdHui)
     val samedi = vendredi.plusDays(1)
-    val boxes = etat.semaine?.boxes.orEmpty()
+    val semaine = etat.semaine
+    val boxes = semaine?.boxes.orEmpty()
+    val travail = semaine?.travail
+    val ceSoir = semaine?.ceSoir
     return listOf(
         etapeDrive(etat.drive),
-        if (boxes.isEmpty()) {
-            Etape(VENDREDI, EtatEtape.EN_COURS, "Scanne chaque box à son arrivée\u00A0: l'app lit son numéro et va chercher la recette.", fin = dateCourte(vendredi))
-        } else {
-            Etape(VENDREDI, EtatEtape.FAITE, if (boxes.size == 1) "1 box scannée." else "${boxes.size} box scannées.", fin = dateCourte(vendredi))
+        when {
+            boxes.isNotEmpty() -> Etape(VENDREDI, EtatEtape.FAITE, if (boxes.size == 1) "1 box scannée." else "${boxes.size} box scannées.", fin = dateCourte(vendredi))
+            // La semaine est importée sur le téléphone qui n'a rien scanné : c'est fait, ailleurs.
+            travail != null -> Etape(VENDREDI, EtatEtape.FAITE, "Box scannées sur l'autre téléphone.", fin = dateCourte(vendredi))
+            else -> Etape(VENDREDI, EtatEtape.EN_COURS, "Scanne chaque box à son arrivée\u00A0: l'app lit son numéro et va chercher la recette.", fin = dateCourte(vendredi))
         },
-        Etape("Vendredi soir", EtatEtape.PAS_ENCORE, "Claude découpe chaque recette en tâches pour vous deux et prépare l'audio."),
-        Etape("Samedi", EtatEtape.PAS_ENCORE, "Importer la semaine depuis le Drive, d'un geste.", fin = dateCourte(samedi)),
-        Etape(EN_CUISINE, EtatEtape.PAS_ENCORE, "Chacun suit ses tâches, à l'écran et à l'oreille."),
+        when {
+            semaine != null && travail != null -> Etape(VENDREDI_SOIR, EtatEtape.FAITE, resumeDuTravail(semaine, etat.mode))
+            boxes.isNotEmpty() -> Etape(
+                VENDREDI_SOIR,
+                EtatEtape.EN_COURS,
+                "Envoie les recettes sur le Drive, dans «\u00A0Carnet de recettes\u00A0», puis lance Claude\u00A0: " +
+                    "il découpe chacune en tâches pour vous deux et prépare l'audio.",
+            )
+            else -> Etape(VENDREDI_SOIR, EtatEtape.A_FAIRE, "Claude découpe chaque recette en tâches pour vous deux et prépare l'audio.")
+        },
+        if (travail != null) {
+            Etape(SAMEDI, EtatEtape.FAITE, "Semaine importée.", fin = dateCourte(samedi))
+        } else {
+            Etape(SAMEDI, EtatEtape.A_FAIRE, "Importe la semaine préparée par Claude, d'un geste.", fin = dateCourte(samedi))
+        },
+        when {
+            ceSoir != null -> {
+                val plan = Planificateur.planifier(ceSoir, etat.mode)
+                val qui = if (etat.mode == ModeCuisine.A_DEUX) "à deux" else "seul"
+                Etape(EN_CUISINE, EtatEtape.EN_COURS, "Ce soir\u00A0: la ${ceSoir.numero}, environ ${dureeEnClair(plan.duree)} $qui.")
+            }
+            travail != null -> Etape(EN_CUISINE, EtatEtape.FAITE, "Toutes les recettes de la semaine sont cuisinées.")
+            else -> Etape(EN_CUISINE, EtatEtape.A_FAIRE, "Chacun suit ses tâches, à l'écran et à l'oreille.")
+        },
     )
 }
 
+/** « Claude a préparé les 6 recettes : 112 tâches pour vous deux, 105 segments à écouter. » */
+private fun resumeDuTravail(semaine: EtatSemaine, mode: ModeCuisine): String {
+    val recettes = semaine.preparees
+    if (recettes.isEmpty()) return "Claude n'a pas pu préparer la semaine."
+    val taches = recettes.sumOf { it.taches.size }
+    val segments = recettes.sumOf { it.segments.size }
+    val quoi = if (recettes.size == 1) "la recette" else "les ${recettes.size} recettes"
+    val pourQui = if (mode == ModeCuisine.A_DEUX) " pour vous deux" else ""
+    return "Claude a préparé $quoi\u00A0: ${pluriel(taches, "tâche", "tâches")}$pourQui, ${pluriel(segments, "segment", "segments")} à écouter."
+}
+
+/** « 1 tâche », « 4 tâches », sans que le nombre reste seul en fin de ligne. */
+internal fun pluriel(n: Int, un: String, plusieurs: String): String = if (n == 1) "1\u00A0$un" else "$n\u00A0$plusieurs"
+
 private const val DRIVE = "Drive du foyer"
 private const val VENDREDI = "Vendredi"
+private const val VENDREDI_SOIR = "Vendredi soir"
+private const val SAMEDI = "Samedi"
 private const val EN_CUISINE = "En cuisine"
 
 private fun etapeDrive(drive: EtatDrive): Etape = when (drive) {

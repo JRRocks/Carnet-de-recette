@@ -37,6 +37,12 @@ data class SemaineIso(val annee: Int, val numero: Int) : Comparable<SemaineIso> 
 
     fun vendredi(): LocalDate = lundi().plusDays(4)
 
+    /**
+     * Le nom d'un fichier de la semaine sur le Drive, à la française : « recettes-2026-S44.json »,
+     * « semaine-2026-S44.json » (cadrage § 4). Le contenu, lui, écrit la semaine « 2026-W44 ».
+     */
+    fun nomDeFichier(prefixe: String): String = String.format(Locale.ROOT, "%s-%04d-S%02d.json", prefixe, annee, numero)
+
     companion object {
         fun de(jour: LocalDate): SemaineIso =
             SemaineIso(jour.get(IsoFields.WEEK_BASED_YEAR), jour.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR))

@@ -1,5 +1,8 @@
 package fr.jrrocks.carnetderecette.donnees
 
+import fr.jrrocks.carnetderecette.core.cuisine.FichierSemaine
+import fr.jrrocks.carnetderecette.core.cuisine.LectureSemaine
+import fr.jrrocks.carnetderecette.core.cuisine.RecettePreparee
 import fr.jrrocks.carnetderecette.core.fiche.FicheScannee
 import fr.jrrocks.carnetderecette.core.recette.MenuSemaine
 import fr.jrrocks.carnetderecette.core.recette.Recette
@@ -8,6 +11,7 @@ import fr.jrrocks.carnetderecette.core.semaine.FichierRecettes
 import fr.jrrocks.carnetderecette.core.semaine.SemaineIso
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -57,6 +61,25 @@ interface DepotSemaine {
     fun dossierPhotos(semaine: SemaineIso): File
 
     /**
+     * Range la semaine préparée par Claude ([ouvrir] : le fichier choisi le samedi dans le
+     * sélecteur), après l'avoir lue : elle doit être celle de [semaine]. Remplace un import
+     * précédent ; les recettes déjà cuisinées le restent. Un refus (fichier qui ne s'ouvre pas,
+     * autre fichier, autre semaine, téléphone plein) laisse l'import précédent en place et
+     * s'affiche sur la Semaine.
+     */
+    suspend fun importerSemaine(semaine: SemaineIso, ouvrir: () -> InputStream?): LectureSemaine
+
+    /** La recette [numero] a été cuisinée jusqu'au bout sur ce téléphone ; écrit en arrière-plan. */
+    fun marquerCuisinee(semaine: SemaineIso, numero: Int)
+
+    /**
+     * Le fichier des recettes de [semaine] (« recettes-2026-S44.json »), écrit pour être envoyé
+     * sur le Drive, où Claude le lit le vendredi soir, tant que l'app ne l'y dépose pas elle-même.
+     * Lève [EcritureImpossible] si le téléphone est plein.
+     */
+    suspend fun fichierPourClaude(semaine: SemaineIso): File
+
+    /**
      * Le fichier local d'une image du site ([chemin] : « /image/…jpg »), s'il a déjà été
      * téléchargé ; `null` sinon.
      */
@@ -94,9 +117,32 @@ data class EtatSemaine(
     val versionImages: Int = 0,
     /** La dernière écriture a échoué (téléphone plein), en clair ; `null` dès qu'une écriture réussit. */
     val ecritureImpossible: String? = null,
+    /** La semaine préparée par Claude, importée le samedi ; `null` avant l'import. */
+    val travail: FichierSemaine? = null,
+    /** Les recettes cuisinées jusqu'au bout sur ce téléphone, par numéro. */
+    val cuisinees: Set<Int> = emptySet(),
+    /** Pourquoi le dernier import a été refusé, en clair ; `null` dès qu'un import réussit. */
+    val importRefuse: String? = null,
+    /** Ce que le dernier import a laissé de côté (une recette illisible…), en clair. */
+    val remarquesImport: List<String> = emptyList(),
 ) {
     val boxes: List<BoxScannee> get() = fichier.boxes
     fun recette(numero: Int): Recette? = fichier.recette(fichier.box(numero)?.recetteId)
+
+    /** Le titre d'une recette, celui de sa page ou du menu ; `null` si ce téléphone ne le connaît pas. */
+    fun titreConnu(numero: Int): String? = recette(numero)?.titre ?: menu?.entree(numero)?.titre
+
+    /** Le titre d'une recette, sinon « Recette 207 ». */
+    fun titre(numero: Int): String = titreConnu(numero) ?: "Recette $numero"
+
+    /** « 207 · Poulet au miel », ou « Recette 207 » sans titre connu (le menu n'est pas encore lu). */
+    fun numeroEtTitre(numero: Int): String = titreConnu(numero)?.let { "$numero · $it" } ?: "Recette $numero"
+
+    /** Les recettes préparées par Claude, dans l'ordre où il conseille de les cuisiner. */
+    val preparees: List<RecettePreparee> get() = travail?.recettes.orEmpty()
+
+    /** La recette de ce soir : la première que Claude conseille et qu'on n'a pas encore cuisinée. */
+    val ceSoir: RecettePreparee? get() = preparees.firstOrNull { it.numero !in cuisinees }
 }
 
 sealed interface ResultatMenu {

@@ -1,13 +1,20 @@
 package fr.jrrocks.carnetderecette.donnees
 
+import fr.jrrocks.carnetderecette.capture.SemaineFactice
+import fr.jrrocks.carnetderecette.core.cuisine.LecteurSemaine
+import fr.jrrocks.carnetderecette.core.cuisine.LectureSemaine
 import fr.jrrocks.carnetderecette.core.fiche.FicheScannee
+import fr.jrrocks.carnetderecette.core.semaine.FichierRecettes
 import fr.jrrocks.carnetderecette.core.hellofresh.PageIllisible
 import fr.jrrocks.carnetderecette.core.semaine.BoxScannee
 import fr.jrrocks.carnetderecette.core.semaine.SemaineIso
 import fr.jrrocks.carnetderecette.core.semaine.StatutSemaine
 import fr.jrrocks.carnetderecette.net.PageRecue
 import fr.jrrocks.carnetderecette.net.RefusSite
+import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.nio.file.Files
@@ -401,5 +408,88 @@ class DepotLocalTest {
         depot.ajouterFiche(semaine, fiche.copy(prisLe = "t2"))
         assertEquals(listOf("t2"), depot.etat(semaine).value.fichier.fiches.map { it.prisLe })
         assertTrue(depot.dossierPhotos(semaine).isDirectory)
+    }
+
+    // ── Le samedi : la semaine préparée par Claude ──────────────────────────────
+
+    private fun document(texte: String): () -> InputStream = { ByteArrayInputStream(texte.toByteArray(Charsets.UTF_8)) }
+
+    @Test
+    fun `la semaine de Claude s'importe et se retrouve au lancement suivant`() = runBlocking {
+        val depot = depot()
+        val lecture = depot.importerSemaine(semaine, document(SemaineFactice.travailJson))
+        assertTrue(lecture is LectureSemaine.Lue)
+        val etat = depot.etat(semaine).value
+        assertEquals(listOf(207, 203), etat.preparees.map { it.numero })
+        assertEquals(207, etat.ceSoir?.numero)
+        assertNull(etat.importRefuse)
+        // Gardée telle que Claude l'a écrite, relue au lancement suivant.
+        assertEquals(SemaineFactice.travailJson, File(racine, "semaines/2026-W44/semaine-claude.json").readText())
+        assertEquals(listOf(207, 203), depot().etat(semaine).value.preparees.map { it.numero })
+    }
+
+    @Test
+    fun `un import refuse garde le precedent et dit pourquoi`() = runBlocking {
+        val depot = depot()
+        depot.importerSemaine(semaine, document(SemaineFactice.travailJson))
+
+        val autreSemaine = depot.importerSemaine(semaine, document(SemaineFactice.travailJson.replace("2026-W44", "2026-W43")))
+        val motif = (autreSemaine as LectureSemaine.Refusee).motif
+        assertTrue(motif, motif.startsWith("Ce fichier prépare la semaine 43"))
+        val etat = depot.etat(semaine).value
+        assertEquals(motif, etat.importRefuse)
+        assertEquals("l'import précédent reste", 2, etat.preparees.size)
+
+        // Le fichier des recettes à la place de celui de Claude : l'erreur la plus probable.
+        val recettes = depot.importerSemaine(semaine, document("""{"type":"recettes","version":1,"semaine":"2026-W44"}"""))
+        assertTrue((recettes as LectureSemaine.Refusee).motif.startsWith("C'est le fichier des recettes"))
+
+        // Un fichier du Drive qui ne s'ouvre pas (réseau coupé), ou une vidéo touchée par erreur.
+        val ferme = depot.importerSemaine(semaine) { throw IOException("hors ligne") }
+        assertEquals(DepotLocal.MOTIF_DOCUMENT_ILLISIBLE, (ferme as LectureSemaine.Refusee).motif)
+        assertEquals(DepotLocal.MOTIF_DOCUMENT_ILLISIBLE, (depot.importerSemaine(semaine) { null } as LectureSemaine.Refusee).motif)
+        val enorme = depot.importerSemaine(semaine) { ByteArrayInputStream(ByteArray(LecteurSemaine.TAILLE_MAX + 10)) }
+        assertEquals(LecteurSemaine.MOTIF_PAS_UNE_SEMAINE, (enorme as LectureSemaine.Refusee).motif)
+
+        // Un bon fichier efface le refus.
+        assertTrue(depot.importerSemaine(semaine, document(SemaineFactice.travailJson)) is LectureSemaine.Lue)
+        assertNull(depot.etat(semaine).value.importRefuse)
+    }
+
+    @Test
+    fun `une recette cuisinee passe la main a la suivante, meme apres un reimport`() = runBlocking {
+        val depot = depot()
+        depot.importerSemaine(semaine, document(SemaineFactice.travailJson))
+        depot.marquerCuisinee(semaine, 207)
+        assertEquals(setOf(207), depot.etat(semaine).value.cuisinees)
+        assertEquals(203, depot.etat(semaine).value.ceSoir?.numero)
+
+        // Claude refait la semaine : ce qui est cuisiné le reste.
+        depot.importerSemaine(semaine, document(SemaineFactice.travailJson))
+        assertEquals(203, depot.etat(semaine).value.ceSoir?.numero)
+        val relu = depot().etat(semaine).value
+        assertEquals(setOf(207), relu.cuisinees)
+
+        depot.marquerCuisinee(semaine, 203)
+        assertNull("tout est cuisiné", depot.etat(semaine).value.ceSoir)
+    }
+
+    @Test
+    fun `le fichier pour Claude porte le nom du Drive et le contenu du telephone`() = runBlocking {
+        pages["https://www.hellofresh.fr/menus/2026-W44"] = { PageRecue(menu, "u") }
+        pages["https://www.hellofresh.fr/recipes/plat-203"] = { PageRecue(recette203, "u") }
+        val depot = depot()
+        depot.ajouterBox(semaine, box(203))
+
+        val fichier = depot.fichierPourClaude(semaine)
+        assertEquals("recettes-2026-S44.json", fichier.name)
+        val relu = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString(FichierRecettes.serializer(), fichier.readText())
+        assertEquals(listOf(203), relu.boxes.map { it.numero })
+        assertEquals("r203", relu.recettes.single().id)
+
+        // Un seul fichier à envoyer : celui d'une semaine passée disparaît.
+        File(fichier.parentFile, "recettes-2026-S43.json").writeText("{}")
+        depot.fichierPourClaude(semaine)
+        assertEquals(listOf("recettes-2026-S44.json"), fichier.parentFile!!.list()!!.toList())
     }
 }

@@ -11,6 +11,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.test.core.app.ApplicationProvider
 import fr.jrrocks.carnetderecette.audio.EtatEcoute
 import fr.jrrocks.carnetderecette.audio.Sonnerie
+import fr.jrrocks.carnetderecette.core.audio.Declencheur
+import fr.jrrocks.carnetderecette.core.audio.SegmentAudio
 import fr.jrrocks.carnetderecette.core.recette.EtapeRecette
 import fr.jrrocks.carnetderecette.core.recette.Recette
 import java.time.Duration
@@ -119,6 +121,33 @@ class SeanceViewModelTest {
         assertEquals("e2", vm.etat.courant?.id)
         attendre(20_000)
         assertEquals(Sonnerie.SALVES_AVANT_LA_VOIX, salves())
+    }
+
+    @Test
+    fun `la derniere tache faite marque la recette cuisinee, une seance vide non`() {
+        var cuisinee = 0
+        val segments = listOf(
+            SegmentAudio("a1", "Coupe le poivron.", "t1"),
+            SegmentAudio("a2", "Râpe la carotte.", "t2", Declencheur.FIN_TACHE_PRECEDENTE),
+        )
+        fun seance(segments: List<SegmentAudio>) = ViewModelProvider(magasin, viewModelFactory {
+            initializer { SeanceViewModel(application, "203 · Découpe", segments, mapOf("a1" to "Coupe le poivron en lanières."), terminee = { cuisinee++ }) }
+        })[segments.size.toString(), SeanceViewModel::class.java]
+
+        val decoupe = seance(segments)
+        assertEquals("203 · Découpe", decoupe.etat.titre)
+        // L'écran affiche le texte de Claude ; à défaut, celui que dit la voix.
+        assertEquals("Coupe le poivron en lanières.", decoupe.etat.courant?.texte)
+        assertEquals("Râpe la carotte.", decoupe.etat.suivants.single().texte)
+        decoupe.valider()
+        assertEquals(0, cuisinee)
+        decoupe.valider()
+        assertTrue(decoupe.etat.terminee)
+        assertEquals(1, cuisinee)
+
+        // Rien à lire pour ce cuisinier : la séance finit à l'ouverture, sans rien avoir cuisiné.
+        assertTrue(seance(emptyList()).etat.terminee)
+        assertEquals(1, cuisinee)
     }
 
     @Test
